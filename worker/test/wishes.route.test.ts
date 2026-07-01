@@ -109,7 +109,7 @@ describe('GET /api/wishes/:id', () => {
     const id = await seed('published')
     const ok = await SELF.fetch(`${O}/api/wishes/${id}`)
     expect(ok.status).toBe(200)
-    expect((await ok.json<any>()).open_questions.length).toBe(1)
+    expect((await ok.json<any>()).needs.length).toBe(1)
     const no = await SELF.fetch(`${O}/api/wishes/99999`)
     expect(no.status).toBe(404)
   })
@@ -125,18 +125,16 @@ describe('POST vote + responses', () => {
     expect((await b.json<any>()).ok).toBe(false)
   })
 
-  it('adds a response answering an open question', async () => {
+  it('adds a response', async () => {
     mockTurnstileOk()
     const id = await seed('published')
-    const w = await SELF.fetch(`${O}/api/wishes/${id}`).then((r) => r.json<any>())
-    const qid = w.open_questions[0].id
     const res = await SELF.fetch(`${O}/api/wishes/${id}/responses`, {
       method: 'POST', headers: H,
-      body: JSON.stringify({ turnstileToken: 't', body: '看材質', kind: 'answer', questionId: qid }),
+      body: JSON.stringify({ turnstileToken: 't', body: '看材質', kind: 'answer' }),
     })
     expect(res.status).toBe(200)
     const after = await SELF.fetch(`${O}/api/wishes/${id}`).then((r) => r.json<any>())
-    expect(after.open_questions[0].resolved).toBe(1)
+    expect(after.responses[0].body).toBe('看材質')
   })
 
   it('vote on nonexistent wish -> 404', async () => {

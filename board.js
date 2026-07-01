@@ -10,7 +10,11 @@ const COLUMNS = [
 async function load() {
   const board = $('#board'); board.innerHTML = ''
   let wishes
-  try { wishes = (await (await fetch(`${API}/api/wishes?sort=new&limit=100`)).json()).wishes } catch (e) { $('#empty').style.display = 'block'; $('#empty').textContent = '載入失敗,請稍後重試。'; return }
+  try {
+    const res = await fetch(`${API}/api/wishes?sort=new&limit=100`)
+    if (!res.ok) throw new Error('http ' + res.status)   // fetch 不會對 500 throw,要自己擋
+    wishes = (await res.json()).wishes || []
+  } catch (e) { $('#empty').style.display = 'block'; $('#empty').textContent = '載入失敗,請稍後重試。'; return }
   $('#empty').style.display = wishes.length ? 'none' : 'block'
   for (const col of COLUMNS) {
     const items = wishes.filter((w) => w.status === col.status)

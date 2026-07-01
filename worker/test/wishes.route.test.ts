@@ -115,4 +115,25 @@ describe('POST vote + responses', () => {
     const after = await SELF.fetch(`${O}/api/wishes/${id}`).then((r) => r.json<any>())
     expect(after.open_questions[0].resolved).toBe(1)
   })
+
+  it('vote on nonexistent wish -> 404', async () => {
+    mockTurnstileOk()
+    const res = await SELF.fetch(`${O}/api/wishes/99999/vote`, {
+      method: 'POST', headers: H, body: JSON.stringify({ turnstileToken: 't' }),
+    })
+    expect(res.status).toBe(404)
+  })
+
+  it('respond on nonexistent wish -> 404', async () => {
+    mockTurnstileOk()
+    const res = await SELF.fetch(`${O}/api/wishes/99999/responses`, {
+      method: 'POST', headers: H, body: JSON.stringify({ turnstileToken: 't', body: 'hi', kind: 'metoo' }),
+    })
+    expect(res.status).toBe(404)
+  })
+
+  it('non-numeric id -> 404, not 500', async () => {
+    const res = await SELF.fetch(`${O}/api/wishes/abc`)
+    expect(res.status).toBe(404)
+  })
 })

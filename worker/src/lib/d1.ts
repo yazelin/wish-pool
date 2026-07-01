@@ -47,6 +47,11 @@ export async function getWish(db: D1Database, id: number): Promise<Wish | null> 
   return { ...row, open_questions: q.results, responses: r.results }
 }
 
+export async function wishExists(db: D1Database, id: number): Promise<boolean> {
+  const row = await db.prepare('SELECT 1 AS x FROM wishes WHERE id = ?').bind(id).first<{ x: number }>()
+  return !!row
+}
+
 export async function addVote(
   db: D1Database, wishId: number, fingerprint: string, now: number,
 ): Promise<{ ok: boolean; votes: number }> {

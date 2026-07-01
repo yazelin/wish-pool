@@ -21,8 +21,10 @@ function getTurnstileToken() {
     holder.style.display = 'none'
     document.body.appendChild(holder)
     const cleanup = (id) => { try { window.turnstile.remove(id) } catch (e) { /* ignore */ } holder.remove() }
+    // 「隱形」是 widget 類型(在 Cloudflare 後台把 widget 設成 Invisible),不是 size 參數。
+    // size 只接受 normal/compact/flexible;傳 'invisible' 會 throw。render 進隱藏 holder + execute 即可。
     const id = window.turnstile.render(holder, {
-      sitekey: CFG.TURNSTILE_SITE_KEY, size: 'invisible',
+      sitekey: CFG.TURNSTILE_SITE_KEY,
       callback: (t) => { resolve(t); cleanup(id) },
       'error-callback': () => { reject(new Error('turnstile error')); cleanup(id) },
     })

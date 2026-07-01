@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI 願望池</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="wrap">
+    <header class="hero">
+      <h1>AI 願望池</h1>
+      <p>想要 AI 幫你做什麼?許個願,讓大家一起把它變清楚。</p>
+    </header>
+    <div class="bar">
+      <button id="new-wish" class="primary">我要許願</button>
+      <span class="spacer"></span>
+      <button class="sort active" data-sort="hot">熱門</button>
+      <button class="sort" data-sort="new">最新</button>
+    </div>
+    <div id="wall"></div>
+    <p id="empty" class="muted" style="display:none">還沒有願望,當第一個許願的人吧。</p>
+  </div>
+
+  <div class="modal-bg" id="wish-modal">
+    <div class="modal" id="wish-modal-inner"><!-- Task 9 注入 --></div>
+  </div>
+
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

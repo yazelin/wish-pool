@@ -8,8 +8,10 @@ export type WishRow = {
   status: string; votes: number; created_at: number
 }
 export type Need = { id: number; type: string; body: string; resolved: number }
+export type Update = { id: number; kind: string; body: string; github_handle: string | null; created_at: number }
 export type Wish = WishRow & {
   needs: Need[]
+  updates: Update[]
   responses: { id: number; question_id: number | null; body: string; nickname: string | null; kind: string; created_at: number }[]
 }
 
@@ -45,8 +47,9 @@ export async function getWish(db: D1Database, id: number): Promise<Wish | null> 
   const row = await db.prepare('SELECT * FROM wishes WHERE id = ?').bind(id).first<WishRow>()
   if (!row) return null
   const q = await db.prepare('SELECT id, type, body, resolved FROM needs WHERE wish_id = ? ORDER BY id').bind(id).all<Need>()
+  const u = await db.prepare('SELECT id, kind, body, github_handle, created_at FROM updates WHERE wish_id = ? ORDER BY id').bind(id).all<Update>()
   const r = await db.prepare('SELECT id, question_id, body, nickname, kind, created_at FROM responses WHERE wish_id = ? ORDER BY id').bind(id).all<Wish['responses'][number]>()
-  return { ...row, needs: q.results, responses: r.results }
+  return { ...row, needs: q.results, updates: u.results, responses: r.results }
 }
 
 export async function wishExists(db: D1Database, id: number): Promise<boolean> {
@@ -115,4 +118,18 @@ export async function listNeeds(db: D1Database, wishId: number): Promise<Need[]>
 }
 export async function resolveNeed(db: D1Database, id: number): Promise<void> {
   await db.prepare('UPDATE needs SET resolved = 1 WHERE id = ?').bind(id).run()
+}
+
+const UPDATE_KINDS = ['claim', 'progress', 'blocked']
+export async function addUpdate(
+  db: D1Database, wishId: number, u: { kind: string; body: string; github_handle?: string }, now: number,
+): Promise<number> {
+  const kind = UPDATE_KINDS.includes(u.kind) ? u.kind : 'progress'
+  const res = await db.prepare('INSERT INTO updates (wish_id, kind, body, github_handle, created_at) VALUES (?, ?, ?, ?, ?)')
+    .bind(wishId, kind, u.body, u.github_handle ?? null, now).run()
+  return res.meta.last_row_id as number
+}
+export async function listUpdates(db: D1Database, wishId: number): Promise<Update[]> {
+  const { results } = await db.prepare('SELECT id, kind, body, github_handle, created_at FROM updates WHERE wish_id = ? ORDER BY id').bind(wishId).all<Update>()
+  return results
 }

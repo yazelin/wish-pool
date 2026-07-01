@@ -36,4 +36,11 @@ describe('parseRefineResponse', () => {
     }))
     if (r.mode === 'final') expect(r.verdict).toBe('review')
   })
+
+  it('final missing a valid title falls through to ask (not a broken final)', () => {
+    const r = parseRefineResponse(JSON.stringify({ mode: 'final', open_questions: [] }))
+    expect(r.mode).toBe('ask')
+    const blank = parseRefineResponse(JSON.stringify({ mode: 'final', title: '   ' }))
+    expect(blank.mode).toBe('ask')
+  })
 })

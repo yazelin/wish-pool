@@ -131,3 +131,133 @@ document.querySelectorAll('.sort').forEach((b) => b.onclick = () => {
 document.querySelectorAll('.sort').forEach((b) => b.setAttribute('aria-pressed', b.classList.contains('active') ? 'true' : 'false'))
 
 loadWall()
+
+// ---- 送出流程 ----
+const modal = $('#wish-modal')
+const modalInner = $('#wish-modal-inner')
+$('#new-wish').onclick = openWishModal
+
+let chatMessages = []   // {role, content}
+let draft = null        // 最新 final 結果
+
+function closeModal() { modal.classList.remove('open'); modalInner.innerHTML = ''; chatMessages = []; draft = null }
+
+function openWishModal() {
+  chatMessages = []; draft = null
+  modal.classList.add('open')
+  modalInner.innerHTML = `
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <h3 style="margin:0">許個願</h3>
+      <button id="wm-close">關閉</button>
+    </div>
+    <p class="muted">跟 AI 聊兩句,把你想要的講清楚;答不出來的可以跳過。也可以直接自己填。</p>
+    <div class="chat-log" id="wm-log"></div>
+    <div id="wm-input-area"></div>
+    <div class="row" style="margin-top:10px">
+      <button id="wm-manual">自己填就好</button>
+    </div>`
+  $('#wm-close').onclick = closeModal
+  $('#wm-manual').onclick = renderManualForm
+  botSay('嗨,你想要 AI 幫你做什麼?一句話說說看。')
+  renderChatInput()
+}
+
+function botSay(text) { appendMsg('bot', text) }
+function appendMsg(role, text) {
+  const log = $('#wm-log'); log.appendChild(el('div', 'msg ' + role, text)); log.scrollTop = log.scrollHeight
+}
+
+function renderChatInput() {
+  const area = $('#wm-input-area'); area.innerHTML = ''
+  const ta = el('textarea'); ta.placeholder = '打字…答不出來就按「跳過這題」'
+  const row = el('div', 'row'); row.style.marginTop = '8px'
+  const send = el('button', 'primary', '回覆'); send.onclick = () => sendChat(ta.value)
+  const skip = el('button', null, '跳過這題'); skip.onclick = () => sendChat('(這題我先跳過)')
+  row.appendChild(send); row.appendChild(skip)
+  area.appendChild(ta); area.appendChild(row)
+}
+
+async function sendChat(text) {
+  if (!text || !text.trim()) return
+  appendMsg('user', text.trim())
+  chatMessages.push({ role: 'user', content: text.trim() })
+  $('#wm-input-area').innerHTML = '<p class="muted">思考中…</p>'
+  let result
+  try {
+    result = await api('/api/refine', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: chatMessages }),
+    })
+  } catch (e) {
+    botSay('AI 現在有點忙,你可以直接自己填表單送出。')
+    renderManualForm()
+    return
+  }
+  if (result.mode === 'ask') {
+    botSay(result.question)
+    chatMessages.push({ role: 'assistant', content: result.question })
+    renderChatInput()
+  } else {
+    draft = result
+    botSay('我幫你整理好了,確認一下再送出。')
+    renderPreview(result)
+  }
+}
+
+function field(label, name, value, ta = false) {
+  const wrap = el('div'); wrap.style.marginBottom = '8px'
+  wrap.appendChild(el('label', 'muted', label))
+  const input = ta ? el('textarea') : el('input')
+  input.name = name; input.value = value || ''
+  wrap.appendChild(input)
+  return wrap
+}
+
+function renderPreview(r) {
+  const area = $('#wm-input-area'); area.innerHTML = ''
+  const form = el('div')
+  form.appendChild(field('標題', 'title', r.title))
+  form.appendChild(field('問題', 'problem', r.problem, true))
+  form.appendChild(field('現況', 'current', r.current, true))
+  form.appendChild(field('期望', 'desired', r.desired, true))
+  form.appendChild(field('誰會用、多常用', 'who', r.who))
+  form.appendChild(field('你的暱稱(可留空)', 'nickname', ''))
+  if (r.open_questions?.length) {
+    const oq = el('div', 'open-q', '待補問題(送出後大家可幫你回答):' + r.open_questions.join('; '))
+    form.appendChild(oq)
+  }
+  const submit = el('button', 'primary', '送出願望'); submit.style.marginTop = '8px'
+  submit.onclick = () => submitWish(form, r)
+  form.appendChild(submit)
+  area.appendChild(form)
+}
+
+function renderManualForm() {
+  draft = null
+  $('#wm-log').innerHTML = ''
+  botSay('直接填吧,只有標題必填,其他能填多少算多少。')
+  renderPreview({ title: '', problem: '', current: '', desired: '', who: '', open_questions: [] })
+}
+
+async function submitWish(form, r) {
+  const get = (n) => form.querySelector(`[name="${n}"]`).value.trim()
+  const title = get('title')
+  if (!title) { alert('至少給個標題'); return }
+  const payload = {
+    wish: { title, problem: get('problem'), current: get('current'), desired: get('desired'), who: get('who'), nickname: get('nickname') || undefined },
+    open_questions: r.open_questions || [],
+    verdict: r.verdict, // 只有 AI final 且 ok 才會直接上牆;純表單(無 verdict)進 pending
+  }
+  try {
+    const token = await getTurnstileToken()
+    payload.turnstileToken = token
+    const res = await api('/api/wishes', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    })
+    closeModal()
+    if (res.status === 'published') { alert('願望已上牆,謝謝你的許願'); loadWall() }
+    else alert('已送出,審核通過後就會出現在牆上,謝謝')
+  } catch (e) {
+    alert(e.status === 429 ? '今天送出次數已達上限,明天再來' : '送出失敗,請稍後再試')
+  }
+}

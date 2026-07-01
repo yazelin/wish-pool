@@ -7,10 +7,10 @@ compatibility_flags = ["nodejs_compat"]
 binding = "DB"
 database_name = "wish-pool"
 # database_id 由 `wrangler d1 create wish-pool` 取得後貼入(user 執行)
-database_id = "REPLACE_AFTER_D1_CREATE"
+database_id = "0e47a066-f0a8-4f3e-9bdb-5e1bcbf95d52"
 
 [vars]
-ALLOWED_ORIGIN = "http://localhost:8788"   # 部署後改成 GitHub Pages 網址
+ALLOWED_ORIGIN = "https://yazelin.github.io"   # GitHub Pages 來源(CORS 比對)
 GROQ_BASE = "https://api.groq.com/openai/v1"
 GROQ_MODEL = "openai/gpt-oss-120b"
 

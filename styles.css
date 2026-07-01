@@ -2,6 +2,7 @@
   --c-bg: #0f1216; --c-surface: #191f26; --c-surface-2: #222a33;
   --c-text: #e8edf2; --c-muted: #9aa7b4; --c-accent: #4db6ac; --c-accent-2: #7e9cff;
   --c-border: #2c3742; --c-danger: #e57373;
+  --c-on-accent: #06231f; --c-success: #81c784; --c-overlay: rgba(0,0,0,.6);
   --r: 12px; --gap: 16px;
 }
 * { box-sizing: border-box; }
@@ -20,7 +21,7 @@ button {
   background: var(--c-surface-2); color: var(--c-text); border-radius: 999px;
   padding: 10px 16px; min-height: 44px;
 }
-button.primary { background: var(--c-accent); color: #06231f; border-color: transparent; font-weight: 600; }
+button.primary { background: var(--c-accent); color: var(--c-on-accent); border-color: transparent; font-weight: 600; }
 button.sort.active { border-color: var(--c-accent); color: var(--c-accent); }
 .card {
   background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--r);
@@ -28,7 +29,7 @@ button.sort.active { border-color: var(--c-accent); color: var(--c-accent); }
 }
 .card h3 { margin: 0 0 8px; font-size: 1.15rem; }
 .badge { font-size: .75rem; padding: 2px 10px; border-radius: 999px; background: var(--c-surface-2); color: var(--c-muted); }
-.badge.adopted { color: var(--c-accent-2); } .badge.building { color: var(--c-accent); } .badge.done { color: #81c784; }
+.badge.adopted { color: var(--c-accent-2); } .badge.building { color: var(--c-accent); } .badge.done { color: var(--c-success); }
 .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; margin: 10px 0; font-size: .95rem; }
 .kv dt { color: var(--c-muted); white-space: nowrap; }
 .kv dd { margin: 0; }
@@ -38,7 +39,7 @@ button.sort.active { border-color: var(--c-accent); color: var(--c-accent); }
 .open-q.resolved { opacity: .5; text-decoration: line-through; }
 .resp { background: var(--c-surface-2); border-radius: 8px; padding: 8px 12px; margin: 6px 0; font-size: .92rem; }
 .resp .who { color: var(--c-muted); font-size: .8rem; }
-.modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none; align-items: center; justify-content: center; padding: 12px; z-index: 50; }
+.modal-bg { position: fixed; inset: 0; background: var(--c-overlay); display: none; align-items: center; justify-content: center; padding: 12px; z-index: 50; }
 .modal-bg.open { display: flex; }
 .modal { background: var(--c-surface); border-radius: var(--r); width: 100%; max-width: 560px; max-height: 90vh; overflow: auto; padding: 20px; }
 input, textarea, select {
@@ -48,7 +49,7 @@ input, textarea, select {
 textarea { min-height: 80px; resize: vertical; }
 .chat-log { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
 .msg { padding: 8px 12px; border-radius: 10px; max-width: 85%; }
-.msg.user { align-self: flex-end; background: var(--c-accent); color: #06231f; }
+.msg.user { align-self: flex-end; background: var(--c-accent); color: var(--c-on-accent); }
 .msg.bot { align-self: flex-start; background: var(--c-surface-2); }
 .muted { color: var(--c-muted); }
 .row { display: flex; gap: 8px; }

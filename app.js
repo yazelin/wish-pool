@@ -2,7 +2,6 @@ const CFG = window.WISHPOOL_CONFIG
 const API = CFG.WORKER_BASE
 const $ = (s, r = document) => r.querySelector(s)
 const el = (t, cls, txt) => { const e = document.createElement(t); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e }
-const esc = (s) => (s ?? '').toString()
 
 let currentSort = 'hot'
 
@@ -21,10 +20,11 @@ function getTurnstileToken() {
     const holder = el('div')
     holder.style.display = 'none'
     document.body.appendChild(holder)
-    window.turnstile.render(holder, {
+    const cleanup = (id) => { try { window.turnstile.remove(id) } catch (e) { /* ignore */ } holder.remove() }
+    const id = window.turnstile.render(holder, {
       sitekey: CFG.TURNSTILE_SITE_KEY, size: 'invisible',
-      callback: (t) => { resolve(t); holder.remove() },
-      'error-callback': () => { reject(new Error('turnstile error')); holder.remove() },
+      callback: (t) => { resolve(t); cleanup(id) },
+      'error-callback': () => { reject(new Error('turnstile error')); cleanup(id) },
     })
     window.turnstile.execute?.(holder)
   })
@@ -44,7 +44,8 @@ function renderCard(w) {
 
   const foot = el('div', 'card-foot')
   const vote = el('button', 'vote')
-  vote.innerHTML = `▲ <span>${w.votes}</span>`
+  vote.setAttribute('aria-label', '為這個願望加一票')
+  vote.append('▲ ', el('span', null, String(w.votes)))
   vote.onclick = () => doVote(w.id, vote)
   foot.appendChild(vote)
   if (w.nickname) foot.appendChild(el('span', 'muted', '— ' + w.nickname))
@@ -69,7 +70,8 @@ async function doVote(id, btn) {
 
 async function openDetail(id, card) {
   if (card.querySelector('.detail')) { card.querySelector('.detail').remove(); return }
-  const w = await api(`/api/wishes/${id}`)
+  let w
+  try { w = await api(`/api/wishes/${id}`) } catch (e) { alert('載入失敗,請稍後再試'); return }
   const box = el('div', 'detail')
   w.open_questions.forEach((q) => {
     const line = el('div', 'open-q' + (q.resolved ? ' resolved' : ''), '待補:' + q.question)
@@ -110,14 +112,22 @@ async function respond(wishId, box, questionId) {
 
 async function loadWall() {
   const wall = $('#wall'); wall.innerHTML = ''
-  const { wishes } = await api(`/api/wishes?sort=${currentSort}&limit=100`)
-  $('#empty').style.display = wishes.length ? 'none' : 'block'
-  wishes.forEach((w) => wall.appendChild(renderCard(w)))
+  const note = $('#empty')
+  try {
+    const { wishes } = await api(`/api/wishes?sort=${currentSort}&limit=100`)
+    note.textContent = '還沒有願望,當第一個許願的人吧。'
+    note.style.display = wishes.length ? 'none' : 'block'
+    wishes.forEach((w) => wall.appendChild(renderCard(w)))
+  } catch (e) {
+    note.textContent = '載入失敗,請稍後重試。'
+    note.style.display = 'block'
+  }
 }
 
 document.querySelectorAll('.sort').forEach((b) => b.onclick = () => {
-  document.querySelectorAll('.sort').forEach((x) => x.classList.remove('active'))
-  b.classList.add('active'); currentSort = b.dataset.sort; loadWall()
+  document.querySelectorAll('.sort').forEach((x) => { x.classList.remove('active'); x.setAttribute('aria-pressed', 'false') })
+  b.classList.add('active'); b.setAttribute('aria-pressed', 'true'); currentSort = b.dataset.sort; loadWall()
 })
+document.querySelectorAll('.sort').forEach((b) => b.setAttribute('aria-pressed', b.classList.contains('active') ? 'true' : 'false'))
 
 loadWall()

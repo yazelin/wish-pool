@@ -51,7 +51,7 @@ function renderCard(w) {
   vote.onclick = () => doVote(w.id, vote)
   foot.appendChild(vote)
   if (w.nickname) foot.appendChild(el('span', 'muted', '— ' + w.nickname))
-  const detail = el('button', null, '看待補問題 / 回應')
+  const detail = el('button', null, '看詳情 / 交實作')
   detail.onclick = () => openDetail(w.id, card)
   foot.appendChild(detail)
   card.appendChild(foot)

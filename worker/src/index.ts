@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import type { Env } from './env'
 import { wishes } from './routes/wishes'
+import { refineRoute } from './routes/refine'
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -19,5 +20,6 @@ app.use('/api/*', cors({
 app.get('/health', (c) => c.json({ ok: true }))
 
 app.route('/', wishes)
+app.route('/', refineRoute)
 
 export default app

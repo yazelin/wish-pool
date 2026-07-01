@@ -16,6 +16,13 @@ describe('admin auth', () => {
     const res = await SELF.fetch(`${O}/api/admin/wishes?status=pending`)
     expect(res.status).toBe(401)
   })
+
+  it('wrong token -> 401', async () => {
+    const res = await SELF.fetch(`${O}/api/admin/wishes?status=pending`, {
+      headers: { Origin: O, Authorization: 'Bearer nope' },
+    })
+    expect(res.status).toBe(401)
+  })
 })
 
 describe('admin ops', () => {
@@ -31,8 +38,11 @@ describe('admin ops', () => {
       method: 'POST', headers: AUTH, body: JSON.stringify({ status: 'published' }),
     })
     expect(res.status).toBe(200)
+    // 直接斷言狀態真的被改到 published(GET /api/wishes/:id 不依狀態過濾,
+    // 只檢查 200 的話,即使 setStatus 靜默失敗測試也會過)。
     const check = await SELF.fetch(`${O}/api/wishes/${id}`)
     expect(check.status).toBe(200)
+    expect((await check.json<any>()).status).toBe('published')
   })
 
   it('rejects invalid status -> 400', async () => {

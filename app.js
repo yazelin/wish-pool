@@ -34,6 +34,7 @@ function getTurnstileToken() {
 
 function renderCard(w) {
   const card = el('div', 'card')
+  card.id = 'wish-' + w.id   // 讓看板 / 下載規格的 #wish-<id> deep-link 找得到
   const head = el('div', 'row')
   const h = el('h3', null, w.title); head.appendChild(h)
   if (STATUS_LABEL[w.status]) head.appendChild(el('span', 'badge ' + w.status, STATUS_LABEL[w.status]))
@@ -185,7 +186,13 @@ document.querySelectorAll('.sort').forEach((b) => b.onclick = () => {
 })
 document.querySelectorAll('.sort').forEach((b) => b.setAttribute('aria-pressed', b.classList.contains('active') ? 'true' : 'false'))
 
-loadWall()
+loadWall().then(() => {
+  // 從看板點過來(#wish-<id>):捲到該卡並自動展開詳情
+  const m = location.hash.match(/^#wish-(\d+)$/)
+  if (!m) return
+  const card = document.getElementById('wish-' + m[1])
+  if (card) { card.scrollIntoView({ behavior: 'smooth', block: 'start' }); openDetail(Number(m[1]), card) }
+})
 
 // ---- 送出流程 ----
 const modal = $('#wish-modal')

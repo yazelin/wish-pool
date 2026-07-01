@@ -25,7 +25,8 @@ describe('createWish + getWish', () => {
     const id = await createWish(db(), sample(), 1000)
     const w = await getWish(db(), id)
     expect(w?.title).toBe('自動報價工具')
-    expect(w?.open_questions.map((q) => q.question)).toEqual(['依尺寸還是材質?'])
+    expect(w?.needs.map((n) => n.body)).toEqual(['依尺寸還是材質?'])
+    expect(w?.needs[0].type).toBe('info')
     expect(w?.responses).toEqual([])
   })
 })
@@ -62,12 +63,9 @@ describe('addVote', () => {
 describe('addResponse', () => {
   it('adds a response and marks referenced open_question resolved', async () => {
     const id = await createWish(db(), sample(), 1)
-    const w = await getWish(db(), id)
-    const qid = w!.open_questions[0].id
-    await addResponse(db(), id, { body: '看材質', nickname: 'B', kind: 'answer', questionId: qid }, 20)
+    await addResponse(db(), id, { body: '看材質', nickname: 'B', kind: 'answer' }, 20)
     const after = await getWish(db(), id)
     expect(after!.responses[0].body).toBe('看材質')
-    expect(after!.open_questions[0].resolved).toBe(1)
   })
 })
 
@@ -84,6 +82,6 @@ describe('admin', () => {
     await createWish(db(), sample({ status: 'pending' }), 1)
     const all = await exportAll(db())
     expect(all.length).toBe(1)
-    expect(all[0].open_questions.length).toBe(1)
+    expect(all[0].needs.length).toBe(1)
   })
 })

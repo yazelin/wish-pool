@@ -7,8 +7,9 @@ export type WishRow = {
   desired: string | null; who: string | null; nickname: string | null
   status: string; votes: number; created_at: number
 }
+export type Need = { id: number; type: string; body: string; resolved: number }
 export type Wish = WishRow & {
-  open_questions: { id: number; question: string; resolved: number }[]
+  needs: Need[]
   responses: { id: number; question_id: number | null; body: string; nickname: string | null; kind: string; created_at: number }[]
 }
 
@@ -24,6 +25,7 @@ export async function createWish(db: D1Database, w: NewWish, now: number): Promi
   for (const q of w.open_questions) {
     if (!q?.trim()) continue
     await db.prepare('INSERT INTO open_questions (wish_id, question) VALUES (?, ?)').bind(id, q).run()
+    await db.prepare("INSERT INTO needs (wish_id, type, body) VALUES (?, 'info', ?)").bind(id, q).run()
   }
   return id
 }
@@ -42,9 +44,9 @@ export async function listWishes(
 export async function getWish(db: D1Database, id: number): Promise<Wish | null> {
   const row = await db.prepare('SELECT * FROM wishes WHERE id = ?').bind(id).first<WishRow>()
   if (!row) return null
-  const q = await db.prepare('SELECT id, question, resolved FROM open_questions WHERE wish_id = ? ORDER BY id').bind(id).all<{ id: number; question: string; resolved: number }>()
+  const q = await db.prepare('SELECT id, type, body, resolved FROM needs WHERE wish_id = ? ORDER BY id').bind(id).all<Need>()
   const r = await db.prepare('SELECT id, question_id, body, nickname, kind, created_at FROM responses WHERE wish_id = ? ORDER BY id').bind(id).all<Wish['responses'][number]>()
-  return { ...row, open_questions: q.results, responses: r.results }
+  return { ...row, needs: q.results, responses: r.results }
 }
 
 export async function wishExists(db: D1Database, id: number): Promise<boolean> {
@@ -100,4 +102,17 @@ export async function exportAll(db: D1Database): Promise<Wish[]> {
     if (w) out.push(w)
   }
   return out
+}
+
+export async function createNeed(db: D1Database, wishId: number, type: string, body: string): Promise<number> {
+  const t = ['info', 'skill', 'resource'].includes(type) ? type : 'info'
+  const res = await db.prepare('INSERT INTO needs (wish_id, type, body) VALUES (?, ?, ?)').bind(wishId, t, body).run()
+  return res.meta.last_row_id as number
+}
+export async function listNeeds(db: D1Database, wishId: number): Promise<Need[]> {
+  const { results } = await db.prepare('SELECT id, type, body, resolved FROM needs WHERE wish_id = ? ORDER BY id').bind(wishId).all<Need>()
+  return results
+}
+export async function resolveNeed(db: D1Database, id: number): Promise<void> {
+  await db.prepare('UPDATE needs SET resolved = 1 WHERE id = ?').bind(id).run()
 }

@@ -4,7 +4,7 @@ import { SELF, env } from 'cloudflare:test'
 const O = 'https://test.local'
 const AUTH = { 'Content-Type': 'application/json', Origin: O, Authorization: 'Bearer test-admin-token' }
 
-beforeEach(async () => { await env.DB.exec('DELETE FROM wishes') })
+beforeEach(async () => { await env.DB.exec('DELETE FROM answers; DELETE FROM needs; DELETE FROM wishes') })
 
 async function seed(status: string) {
   const { createWish } = await import('../src/lib/d1')
@@ -57,5 +57,27 @@ describe('admin ops', () => {
     await seed('pending'); await seed('published')
     const res = await SELF.fetch(`${O}/api/admin/export`, { headers: AUTH })
     expect((await res.json<any[]>()).length).toBe(2)
+  })
+})
+
+describe('admin phase2', () => {
+  it('hide an answer, accept an answer -> wish done + accepted', async () => {
+    const { createWish, createAnswer } = await import('../src/lib/d1')
+    const id = await createWish(env.DB, { title: 'T', status: 'published', open_questions: [] }, 1)
+    const aid = await createAnswer(env.DB, id, { repo_url: 'https://github.com/x/a' }, 1)
+    const hide = await SELF.fetch(`${O}/api/admin/answers/${aid}/status`, { method: 'POST', headers: AUTH, body: JSON.stringify({ status: 'hidden' }) })
+    expect(hide.status).toBe(200)
+    const acc = await SELF.fetch(`${O}/api/admin/wishes/${id}/accept`, { method: 'POST', headers: AUTH, body: JSON.stringify({ answer_id: aid }) })
+    expect(acc.status).toBe(200)
+    const w = await SELF.fetch(`${O}/api/wishes/${id}`).then((r) => r.json<any>())
+    expect(w.status).toBe('done'); expect(w.accepted_answer_id).toBe(aid)
+  })
+  it('accept with bad answer_id -> 400; admin endpoints need token', async () => {
+    const { createWish } = await import('../src/lib/d1')
+    const id = await createWish(env.DB, { title: 'T', status: 'published', open_questions: [] }, 1)
+    const bad = await SELF.fetch(`${O}/api/admin/wishes/${id}/accept`, { method: 'POST', headers: AUTH, body: JSON.stringify({ answer_id: 99999 }) })
+    expect(bad.status).toBe(400)
+    const noauth = await SELF.fetch(`${O}/api/admin/needs/1/resolve`, { method: 'POST' })
+    expect(noauth.status).toBe(401)
   })
 })

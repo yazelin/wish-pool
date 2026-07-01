@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>願望池後台</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="wrap">
+    <header class="hero"><h1>願望池後台</h1></header>
+    <div class="bar">
+      <input id="token" placeholder="貼上 ADMIN_TOKEN" style="max-width:280px">
+      <button id="save-token" class="primary">記住</button>
+      <span class="spacer"></span>
+      <button id="export">匯出全部 JSON</button>
+    </div>
+    <div class="bar">
+      <button class="sort active" data-status="pending">待審</button>
+      <button class="sort" data-status="published">已上牆</button>
+      <button class="sort" data-status="adopted">已採納</button>
+      <button class="sort" data-status="building">開發中</button>
+      <button class="sort" data-status="done">已完成</button>
+      <button class="sort" data-status="hidden">已隱藏</button>
+    </div>
+    <div id="list"></div>
+    <p id="hint" class="muted"></p>
+  </div>
+  <script src="config.js"></script>
+  <script src="admin.js"></script>
+</body>
+</html>

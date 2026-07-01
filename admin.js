@@ -23,7 +23,10 @@ const LABEL = { published: '通過/上牆', adopted: '標為已採納', building
 async function load() {
   const listEl = $('#list'); listEl.innerHTML = ''; $('#hint').textContent = '載入中…'
   let data
-  try { data = await adminApi(`/api/admin/wishes?status=${status}`) } catch { return }
+  try { data = await adminApi(`/api/admin/wishes?status=${status}`) } catch (e) {
+    const h = $('#hint'); if (h.textContent === '載入中…') h.textContent = '載入失敗,請確認 token 與網路'
+    return
+  }
   $('#hint').textContent = data.wishes.length ? '' : '這個狀態沒有願望'
   data.wishes.forEach((w) => {
     const card = el('div', 'card')
@@ -33,7 +36,10 @@ async function load() {
     const foot = el('div', 'card-foot')
     ;(NEXT[status] || []).forEach((s) => {
       const b = el('button', s === 'hidden' ? '' : 'primary', LABEL[s])
-      b.onclick = async () => { await adminApi(`/api/admin/wishes/${w.id}/status`, { method: 'POST', body: JSON.stringify({ status: s }) }); load() }
+      b.onclick = async () => {
+        try { await adminApi(`/api/admin/wishes/${w.id}/status`, { method: 'POST', body: JSON.stringify({ status: s }) }); load() }
+        catch (e) { alert('操作失敗,請確認 token 與網路') }
+      }
       foot.appendChild(b)
     })
     card.appendChild(foot)
@@ -45,8 +51,10 @@ async function exportAll() {
   try {
     const all = await adminApi('/api/admin/export')
     const blob = new Blob([JSON.stringify(all, null, 2)], { type: 'application/json' })
-    const a = el('a'); a.href = URL.createObjectURL(blob); a.download = 'wishes.json'; a.click()
-  } catch {}
+    const url = URL.createObjectURL(blob)
+    const a = el('a'); a.href = url; a.download = 'wishes.json'; a.click()
+    URL.revokeObjectURL(url)
+  } catch (e) { alert('匯出失敗,請確認 token 與網路') }
 }
 
 document.querySelectorAll('.sort').forEach((b) => b.onclick = () => {

@@ -15,4 +15,4 @@ GROQ_BASE = "https://api.groq.com/openai/v1"
 GROQ_MODEL = "openai/gpt-oss-120b"
 
 # Secrets(用 `wrangler secret put <NAME>`,不放這裡):
-#   GROQ_API_KEY   TURNSTILE_SECRET   ADMIN_TOKEN   IP_SALT   WISH_SIGN_SECRET
+#   GROQ_API_KEY   TURNSTILE_SECRET   ADMIN_TOKEN   IP_SALT   WISH_SIGN_SECRET   AGENT_TOKEN

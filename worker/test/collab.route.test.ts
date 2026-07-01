@@ -1,0 +1,86 @@
+import { describe, it, expect, beforeEach } from 'vitest'
+import { SELF, env, fetchMock } from 'cloudflare:test'
+
+const O = 'https://test.local'
+const H = { 'Content-Type': 'application/json', Origin: O }
+
+beforeEach(async () => {
+  for (const t of ['answer_votes', 'answers', 'updates', 'needs', 'responses', 'open_questions', 'wishes', 'rate_limits']) await env.DB.exec(`DELETE FROM ${t}`)
+  fetchMock.activate(); fetchMock.disableNetConnect()
+})
+function mockTurnstileOk() {
+  fetchMock.get('https://challenges.cloudflare.com').intercept({ path: /siteverify/, method: 'POST' }).reply(200, { success: true }).persist()
+}
+async function seed() {
+  const { createWish } = await import('../src/lib/d1')
+  return createWish(env.DB, { title: 'T', status: 'published', open_questions: [] }, 1)
+}
+
+describe('POST /api/wishes/:id/answers', () => {
+  it('valid repo_url -> {id}; then GET wish shows the answer', async () => {
+    mockTurnstileOk(); const id = await seed()
+    const res = await SELF.fetch(`${O}/api/wishes/${id}/answers`, { method: 'POST', headers: H,
+      body: JSON.stringify({ turnstileToken: 't', repo_url: 'https://github.com/x/a', note: '版本一', github_handle: 'x' }) })
+    expect(res.status).toBe(200)
+    const w = await SELF.fetch(`${O}/api/wishes/${id}`).then((r) => r.json<any>())
+    expect(w.answers.length).toBe(1)
+    expect(w.answers[0].repo_url).toBe('https://github.com/x/a')
+  })
+  it('non-http repo_url -> 400', async () => {
+    mockTurnstileOk(); const id = await seed()
+    const res = await SELF.fetch(`${O}/api/wishes/${id}/answers`, { method: 'POST', headers: H,
+      body: JSON.stringify({ turnstileToken: 't', repo_url: 'javascript:alert(1)' }) })
+    expect(res.status).toBe(400)
+  })
+  it('nonexistent wish -> 404', async () => {
+    mockTurnstileOk()
+    const res = await SELF.fetch(`${O}/api/wishes/99999/answers`, { method: 'POST', headers: H,
+      body: JSON.stringify({ turnstileToken: 't', repo_url: 'https://github.com/x/a' }) })
+    expect(res.status).toBe(404)
+  })
+  it('turnstile fail (empty token) -> 403', async () => {
+    const id = await seed()
+    const res = await SELF.fetch(`${O}/api/wishes/${id}/answers`, { method: 'POST', headers: H,
+      body: JSON.stringify({ turnstileToken: '', repo_url: 'https://github.com/x/a' }) })
+    expect(res.status).toBe(403)
+  })
+})
+
+describe('POST /api/answers/:id/vote', () => {
+  it('votes once, dup ok:false, 404 on missing', async () => {
+    mockTurnstileOk(); const id = await seed()
+    const { createAnswer } = await import('../src/lib/d1')
+    const aid = await createAnswer(env.DB, id, { repo_url: 'https://github.com/x/a' }, 1)
+    const a = await SELF.fetch(`${O}/api/answers/${aid}/vote`, { method: 'POST', headers: H, body: JSON.stringify({ turnstileToken: 't' }) })
+    expect((await a.json<any>()).votes).toBe(1)
+    const b = await SELF.fetch(`${O}/api/answers/${aid}/vote`, { method: 'POST', headers: H, body: JSON.stringify({ turnstileToken: 't' }) })
+    expect((await b.json<any>()).ok).toBe(false)
+    const c = await SELF.fetch(`${O}/api/answers/99999/vote`, { method: 'POST', headers: H, body: JSON.stringify({ turnstileToken: 't' }) })
+    expect(c.status).toBe(404)
+  })
+})
+
+describe('POST updates + needs', () => {
+  it('adds an update; GET wish shows it', async () => {
+    mockTurnstileOk(); const id = await seed()
+    const res = await SELF.fetch(`${O}/api/wishes/${id}/updates`, { method: 'POST', headers: H,
+      body: JSON.stringify({ turnstileToken: 't', kind: 'claim', body: '我認領了', github_handle: 'a' }) })
+    expect(res.status).toBe(200)
+    const w = await SELF.fetch(`${O}/api/wishes/${id}`).then((r) => r.json<any>())
+    expect(w.updates[0].kind).toBe('claim')
+  })
+  it('update empty body -> 400', async () => {
+    mockTurnstileOk(); const id = await seed()
+    const res = await SELF.fetch(`${O}/api/wishes/${id}/updates`, { method: 'POST', headers: H,
+      body: JSON.stringify({ turnstileToken: 't', kind: 'progress', body: '  ' }) })
+    expect(res.status).toBe(400)
+  })
+  it('adds a need; GET wish shows it', async () => {
+    mockTurnstileOk(); const id = await seed()
+    const res = await SELF.fetch(`${O}/api/wishes/${id}/needs`, { method: 'POST', headers: H,
+      body: JSON.stringify({ turnstileToken: 't', type: 'resource', body: '需要一台測試機' }) })
+    expect(res.status).toBe(200)
+    const w = await SELF.fetch(`${O}/api/wishes/${id}`).then((r) => r.json<any>())
+    expect(w.needs.some((n: any) => n.type === 'resource')).toBe(true)
+  })
+})

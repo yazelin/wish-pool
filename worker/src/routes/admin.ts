@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Env } from '../env'
-import { listByStatus, setStatus, exportAll, setAnswerStatus, acceptAnswer, resolveNeed, answerExists } from '../lib/d1'
+import { listByStatus, setStatus, exportAll, setAnswerStatus, acceptAnswer, resolveNeed, answerExists, deleteWish } from '../lib/d1'
 
 const STATUSES = ['pending', 'published', 'adopted', 'building', 'done', 'hidden']
 
@@ -43,5 +43,12 @@ admin.post('/api/admin/wishes/:id/accept', async (c) => {
 
 admin.post('/api/admin/needs/:id/resolve', async (c) => {
   await resolveNeed(c.env.DB, Number(c.req.param('id')))
+  return c.json({ ok: true })
+})
+
+admin.post('/api/admin/wishes/:id/delete', async (c) => {
+  const id = Number(c.req.param('id'))
+  if (!Number.isInteger(id)) return c.json({ error: 'bad_id' }, 400)
+  await deleteWish(c.env.DB, id)
   return c.json({ ok: true })
 })

@@ -45,6 +45,22 @@ async function load() {
     const manage = el('button', null, '管理實作 / 需求')
     manage.onclick = () => manageDetail(w.id, card)
     foot.appendChild(manage)
+    if (status !== 'hidden' && !(NEXT[status] || []).includes('hidden')) {
+      const hide = el('button', null, '隱藏')
+      hide.onclick = async () => {
+        try { await adminApi(`/api/admin/wishes/${w.id}/status`, { method: 'POST', body: JSON.stringify({ status: 'hidden' }) }); load() }
+        catch (e) { alert('操作失敗,請確認 token 與網路') }
+      }
+      foot.appendChild(hide)
+    }
+    const del = el('button', null, '刪除')
+    del.style.color = 'var(--danger)'
+    del.onclick = async () => {
+      if (!confirm(`確定刪除「${w.title}」?無法復原,會一併清掉它的答案 / 需求 / 進度。`)) return
+      try { await adminApi(`/api/admin/wishes/${w.id}/delete`, { method: 'POST' }); load() }
+      catch (e) { alert('刪除失敗,請確認 token 與網路') }
+    }
+    foot.appendChild(del)
     card.appendChild(foot)
     listEl.appendChild(card)
   })

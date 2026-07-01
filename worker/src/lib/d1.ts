@@ -172,3 +172,11 @@ export async function setAnswerStatus(db: D1Database, id: number, status: string
 export async function acceptAnswer(db: D1Database, wishId: number, answerId: number): Promise<void> {
   await db.prepare("UPDATE wishes SET accepted_answer_id = ?, status = 'done' WHERE id = ?").bind(answerId, wishId).run()
 }
+// 硬刪除:連子表一起清(表名來自固定陣列,非 user input)。
+export async function deleteWish(db: D1Database, id: number): Promise<void> {
+  await db.prepare('DELETE FROM answer_votes WHERE answer_id IN (SELECT id FROM answers WHERE wish_id = ?)').bind(id).run()
+  for (const t of ['answers', 'updates', 'needs', 'votes', 'responses', 'open_questions']) {
+    await db.prepare(`DELETE FROM ${t} WHERE wish_id = ?`).bind(id).run()
+  }
+  await db.prepare('DELETE FROM wishes WHERE id = ?').bind(id).run()
+}

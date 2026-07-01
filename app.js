@@ -75,25 +75,78 @@ async function openDetail(id, card) {
   let w
   try { w = await api(`/api/wishes/${id}`) } catch (e) { alert('載入失敗,請稍後再試'); return }
   const box = el('div', 'detail')
-  w.open_questions.forEach((q) => {
-    const line = el('div', 'open-q' + (q.resolved ? ' resolved' : ''), '待補:' + q.question)
-    if (!q.resolved) {
-      const ans = el('button', null, '我來回答')
-      ans.style.marginLeft = '8px'
-      ans.onclick = () => respond(id, box, q.id)
-      line.appendChild(ans)
-    }
+
+  // 還缺什麼(needs)
+  if (w.needs.length) {
+    box.appendChild(el('h4', 'detail-h', '還缺什麼'))
+    w.needs.forEach((n) => {
+      const label = { info: '缺資訊', skill: '缺技能', resource: '缺資源' }[n.type] || '缺資訊'
+      box.appendChild(el('div', 'need' + (n.resolved ? ' resolved' : ''), `[${label}] ${n.body}`))
+    })
+  }
+  const addNeed = el('button', null, '補一個「還缺什麼」')
+  addNeed.onclick = () => submitNeed(id, box)
+  box.appendChild(addNeed)
+
+  // 進度(work-log)
+  box.appendChild(el('h4', 'detail-h', '進度'))
+  if (w.updates.length) w.updates.forEach((u) => {
+    const kind = { claim: '認領', progress: '進度', blocked: '卡關' }[u.kind] || '進度'
+    const line = el('div', 'update')
+    line.appendChild(el('span', 'update-kind ' + u.kind, kind))
+    line.appendChild(el('span', null, ' ' + u.body))
+    line.appendChild(el('span', 'who', u.github_handle ? '  @' + u.github_handle : ''))
     box.appendChild(line)
   })
-  w.responses.forEach((r) => {
-    const rr = el('div', 'resp')
-    rr.appendChild(el('div', null, (r.kind === 'metoo' ? '我也要:' : '') + r.body))
-    rr.appendChild(el('div', 'who', r.nickname ? '— ' + r.nickname : '— 匿名'))
-    box.appendChild(rr)
+  else box.appendChild(el('div', 'muted', '還沒有人認領或回報進度'))
+  const addUpdate = el('button', null, '認領 / 回報進度')
+  addUpdate.onclick = () => submitUpdate(id, box)
+  box.appendChild(addUpdate)
+
+  // 實作版本(answers)
+  box.appendChild(el('h4', 'detail-h', `實作版本(${w.answers.length})`))
+  w.answers.forEach((a, i) => {
+    const ans = el('div', 'answer')
+    const top = el('div', 'answer-top')
+    const link = el('a', 'repo-link'); link.href = a.repo_url; link.textContent = a.repo_url
+    link.target = '_blank'; link.rel = 'noopener nofollow'
+    top.appendChild(link)
+    if (a.id === w.accepted_answer_id) top.appendChild(el('span', 'badge done', '官方採用'))
+    else if (i === 0 && a.votes > 0) top.appendChild(el('span', 'badge adopted', '參考答案'))
+    ans.appendChild(top)
+    if (a.note) ans.appendChild(el('div', null, a.note))
+    const foot = el('div', 'answer-foot')
+    const vote = el('button', 'vote'); vote.setAttribute('aria-label', '為這個實作版本加一票')
+    vote.append('▲ ', el('span', null, String(a.votes)))
+    vote.onclick = () => voteAnswer(a.id, vote)
+    foot.appendChild(vote)
+    if (a.github_handle) foot.appendChild(el('span', 'muted', '@' + a.github_handle))
+    ans.appendChild(foot)
+    box.appendChild(ans)
   })
+  const addAnswer = el('button', 'primary', '我做了這個,交 repo')
+  addAnswer.onclick = () => submitAnswer(id, box)
+  box.appendChild(addAnswer)
+
+  // 討論(responses / 我也要)
+  if (w.responses.length) {
+    box.appendChild(el('h4', 'detail-h', '討論'))
+    w.responses.forEach((r) => {
+      const rr = el('div', 'resp')
+      rr.appendChild(el('div', null, (r.kind === 'metoo' ? '我也要:' : '') + r.body))
+      rr.appendChild(el('div', 'who', r.nickname ? '— ' + r.nickname : '— 匿名'))
+      box.appendChild(rr)
+    })
+  }
   const metoo = el('button', null, '我也要 / 補一句')
   metoo.onclick = () => respond(id, box, null)
   box.appendChild(metoo)
+
+  // 下載規格
+  const dl = el('button', null, '下載規格')
+  dl.onclick = () => downloadSpec(w)
+  box.appendChild(dl)
+
   card.appendChild(box)
 }
 
@@ -262,4 +315,53 @@ async function submitWish(form, r, submit) {
     if (submit) submit.disabled = false
     alert(e.status === 429 ? '今天送出次數已達上限,明天再來' : '送出失敗,請稍後再試')
   }
+}
+
+async function postWithTurnstile(path, payload, okMsg, box) {
+  try {
+    const token = await getTurnstileToken()
+    await api(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...payload, turnstileToken: token }) })
+    if (box) box.remove()   // 重開會重新載入最新
+    alert(okMsg)
+  } catch (e) { alert(e.status === 429 ? '今天次數已達上限,明天再來' : '送出失敗,請稍後再試') }
+}
+async function submitAnswer(wishId, box) {
+  const repo = prompt('你的 repo 網址(https://github.com/...):')
+  if (!repo || !/^https?:\/\//.test(repo.trim())) { if (repo !== null) alert('請貼有效的 http(s) 網址'); return }
+  const note = prompt('一句話說明這個版本(可留空):') || undefined
+  const handle = prompt('你的 GitHub 帳號(選填,未驗證):') || undefined
+  await postWithTurnstile(`/api/wishes/${wishId}/answers`, { repo_url: repo.trim(), note, github_handle: handle }, '已交出,謝謝你的實作', box)
+}
+async function voteAnswer(answerId, btn) {
+  try {
+    const token = await getTurnstileToken()
+    const r = await api(`/api/answers/${answerId}/vote`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ turnstileToken: token }) })
+    btn.querySelector('span').textContent = r.votes
+    if (!r.ok) btn.disabled = true
+  } catch (e) { alert('投票失敗,請稍後再試') }
+}
+async function submitUpdate(wishId, box) {
+  const kindLabel = prompt('類型:輸入 1=認領 2=進度 3=卡關', '2')
+  const kind = { '1': 'claim', '2': 'progress', '3': 'blocked' }[String(kindLabel).trim()] || 'progress'
+  const body = prompt('內容(例:我認領了 / 做到 X / 卡在 Y):')
+  if (!body || !body.trim()) return
+  const handle = prompt('你的 GitHub 帳號(選填):') || undefined
+  await postWithTurnstile(`/api/wishes/${wishId}/updates`, { kind, body: body.trim(), github_handle: handle }, '已記錄,謝謝', box)
+}
+async function submitNeed(wishId, box) {
+  const typeLabel = prompt('缺什麼類型:1=資訊 2=技能 3=資源', '1')
+  const type = { '1': 'info', '2': 'skill', '3': 'resource' }[String(typeLabel).trim()] || 'info'
+  const body = prompt('還缺什麼?')
+  if (!body || !body.trim()) return
+  await postWithTurnstile(`/api/wishes/${wishId}/needs`, { type, body: body.trim() }, '已補上,謝謝', box)
+}
+function downloadSpec(w) {
+  const lines = [
+    `# ${w.title}`, '',
+    `- 問題:${w.problem || ''}`, `- 現況:${w.current || ''}`, `- 期望:${w.desired || ''}`, `- 誰會用:${w.who || ''}`, '',
+    '## 還缺什麼', ...(w.needs || []).map((n) => `- [${n.resolved ? 'x' : ' '}] (${n.type}) ${n.body}`), '',
+    `願望連結:${location.origin}${location.pathname}#wish-${w.id}`,
+  ]
+  const blob = new Blob([lines.join('\n')], { type: 'text/markdown' })
+  const a = el('a'); const url = URL.createObjectURL(blob); a.href = url; a.download = `wish-${w.id}.md`; a.click(); URL.revokeObjectURL(url)
 }

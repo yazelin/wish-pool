@@ -53,8 +53,10 @@ export async function addVote(
   try {
     await db.prepare('INSERT INTO votes (wish_id, fingerprint, created_at) VALUES (?, ?, ?)')
       .bind(wishId, fingerprint, now).run()
-  } catch {
-    // ponytail: PK衝突 = 已投過。軟去重上限:同 IP(NAT)會共用指紋,小社群可接受。
+  } catch (e) {
+    // 只把 UNIQUE 主鍵衝突當「已投過」;其他錯誤照拋,避免真錯誤被誤報成重複投票。
+    // ponytail: 軟去重上限:同 IP(NAT)會共用指紋,小社群可接受。
+    if (!String((e as Error)?.message ?? e).includes('UNIQUE')) throw e
     const cur = await db.prepare('SELECT votes FROM wishes WHERE id = ?').bind(wishId).first<{ votes: number }>()
     return { ok: false, votes: cur?.votes ?? 0 }
   }

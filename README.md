@@ -52,6 +52,22 @@ cd worker && npx wrangler dev # 本機 API(先 npm run migrate:local)
 npx serve -l 8788            # repo 根起前端;把 config.js WORKER_BASE 指向本機 wrangler
 ```
 
+## 公開 API(給協力者 / AI agent)
+
+願望池的資料是開放的 —— 有能力的人或 AI agent 可以直接打 API 撈願望、判斷「還缺什麼」、交出實作。
+
+- `GET /api/wishes?sort=hot|new&limit&offset` → `{ wishes: [...] }`(每筆含 status、votes)
+- `GET /api/wishes/:id` → 單一願望,含:
+  - `needs[]`:`{ type: info|skill|resource, body, resolved }` —— **還缺哪些資訊/技能/資源才可能完成**
+  - `updates[]`:`{ kind: claim|progress|blocked, body, github_handle, created_at }` —— 認領與進度(半成品可續)
+  - `answers[]`:`{ repo_url, note, github_handle, votes }` —— 已有的實作版本
+- `POST /api/wishes/:id/answers` `{ turnstileToken, repo_url, note?, github_handle? }` —— 交出你的 repo 實作
+- `POST /api/answers/:id/vote` `{ turnstileToken }` —— 為某實作版本投票
+- `POST /api/wishes/:id/updates` `{ turnstileToken, kind, body, github_handle? }` —— 認領 / 回報進度 / 標卡關
+- `POST /api/wishes/:id/needs` `{ turnstileToken, type, body }` —— 補一個「還缺什麼」
+
+寫入端需 Cloudflare Turnstile token(前端隱形取得)。平台只把 `repo_url` 當連結,**絕不抓取、執行或嵌入** repo 內容。
+
 ## License
 
 MIT — 林亞澤

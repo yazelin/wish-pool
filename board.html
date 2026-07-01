@@ -3,12 +3,19 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>願望池 · 看板</title>
+  <title>願望看板 · AI 願望池</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div class="wrap">
-    <header class="hero"><h1>願望看板</h1><p>每則願望的狀態一覽 · <a class="repo-link" href="index.html">回許願牆</a></p></header>
+    <header class="hero">
+      <span class="kicker">Board</span>
+      <h1>願望看板</h1>
+      <p>每則願望走到哪、還缺什麼,一眼看完。<a href="index.html">回許願牆 &rarr;</a></p>
+    </header>
     <div id="board"></div>
     <p id="empty" class="muted" style="display:none">還沒有願望。</p>
   </div>

@@ -27,12 +27,25 @@ describe('POST /api/refine', () => {
     expect(await res.json<any>()).toEqual({ mode: 'ask', question: '誰會用?' })
   })
 
-  it('returns final result', async () => {
+  it('returns final result with a signature when verdict is ok', async () => {
     mockGroq(JSON.stringify({ mode: 'final', title: '報價工具', problem: 'p', current: 'c', desired: 'd', who: 'w', open_questions: [], verdict: 'ok', verdict_reason: 'ok' }))
     const res = await SELF.fetch(`${O}/api/refine`, {
       method: 'POST', headers: H, body: JSON.stringify({ messages: [{ role: 'user', content: '好了送出' }] }),
     })
-    expect((await res.json<any>()).mode).toBe('final')
+    const j = await res.json<any>()
+    expect(j.mode).toBe('final')
+    expect(typeof j.sig).toBe('string')
+    expect(j.sig).toMatch(/^\d+\.[0-9a-f]{64}$/)
+  })
+
+  it('review-verdict final carries no signature', async () => {
+    mockGroq(JSON.stringify({ mode: 'final', title: '幫我寫作業', problem: 'p', current: 'c', desired: 'd', who: 'w', open_questions: [], verdict: 'review', verdict_reason: 'off-topic' }))
+    const res = await SELF.fetch(`${O}/api/refine`, {
+      method: 'POST', headers: H, body: JSON.stringify({ messages: [{ role: 'user', content: '送出' }] }),
+    })
+    const j = await res.json<any>()
+    expect(j.verdict).toBe('review')
+    expect(j.sig).toBeUndefined()
   })
 
   it('LLM error -> 500 llm_unavailable', async () => {

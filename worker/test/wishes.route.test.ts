@@ -29,16 +29,39 @@ async function seed(status = 'published') {
 }
 
 describe('POST /api/wishes', () => {
-  it('verdict ok -> published', async () => {
+  it('verdict ok WITH a valid signature -> published', async () => {
     mockTurnstileOk()
+    const { signWish } = await import('../src/lib/sign')
+    const wish = { title: '自動報價', problem: 'x', current: 'y', desired: 'z', who: 'w' }
+    const sig = await signWish('test-sign-secret', wish, 'ok', Math.floor(Date.now() / 1000) + 3600)
     const res = await SELF.fetch(`${O}/api/wishes`, {
       method: 'POST', headers: H,
-      body: JSON.stringify({ turnstileToken: 't', verdict: 'ok', open_questions: ['a?'],
-        wish: { title: '自動報價', problem: 'x', current: 'y', desired: 'z', who: 'w', nickname: 'me' } }),
+      body: JSON.stringify({ turnstileToken: 't', verdict: 'ok', sig, open_questions: ['a?'],
+        wish: { ...wish, nickname: 'me' } }),
     })
     expect(res.status).toBe(200)
     const j = await res.json<{ id: number; status: string }>()
     expect(j.status).toBe('published')
+  })
+
+  it('verdict ok but NO signature (forged) -> pending', async () => {
+    mockTurnstileOk()
+    const res = await SELF.fetch(`${O}/api/wishes`, {
+      method: 'POST', headers: H,
+      body: JSON.stringify({ turnstileToken: 't', verdict: 'ok', wish: { title: '直接偽造 ok' } }),
+    })
+    expect((await res.json<{ status: string }>()).status).toBe('pending')
+  })
+
+  it('verdict ok but content edited after signing (sig mismatch) -> pending', async () => {
+    mockTurnstileOk()
+    const { signWish } = await import('../src/lib/sign')
+    const sig = await signWish('test-sign-secret', { title: '原本無害', problem: 'p' }, 'ok', Math.floor(Date.now() / 1000) + 3600)
+    const res = await SELF.fetch(`${O}/api/wishes`, {
+      method: 'POST', headers: H,
+      body: JSON.stringify({ turnstileToken: 't', verdict: 'ok', sig, wish: { title: '改成不當內容', problem: 'p' } }),
+    })
+    expect((await res.json<{ status: string }>()).status).toBe('pending')
   })
 
   it('no verdict -> pending', async () => {

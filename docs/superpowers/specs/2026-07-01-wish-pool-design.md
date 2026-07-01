@@ -77,6 +77,7 @@ GitHub Pages(靜態前端,RWD)
    }
    ```
 6. `verdict=ok` → 直接上牆(status=`published`)。`verdict=review` → status=`pending`,等 owner 審。
+   - **信任邊界**:`verdict` 由前端送出,不可信。所以 `/api/refine` 對「判 ok 的願望內容」用 `WISH_SIGN_SECRET` 做 HMAC 簽章(短期 token),送出時 Worker 重算 hash + 驗簽,通過才 `published`;偽造、改過預覽內容、或過期一律落 `pending`。避免有人繞過 AI 直接 `curl {verdict:'ok'}` 上牆。
 7. **降級路徑**:若 LLM 呼叫失敗或使用者選「跳過 AI 自己填」,前端出純結構表單,送出時 Worker 略過 LLM、直接落地為 `pending`(未經 AI 把關的一律進審)。
 
 ## 公開牆 + 協作
@@ -91,7 +92,7 @@ GitHub Pages(靜態前端,RWD)
 互動:
 - **+1**:過 Turnstile;localStorage 標記 + Worker 記當日 IP 指紋做軟去重。ponytail:軟去重擋順手灌,不防決心刷票;要硬防再上登入。
 - **回應 / 補答**:選填暱稱,無需登入。
-- 排序可切:熱度(票 + 回應數)/ 最新。
+- 排序可切:熱度(票數)/ 最新。(v1 熱度只看票數;回應數要不要計入之後再說。)
 - 狀態由 owner 在後台改,社員看得到自己的願望被兌現。
 
 ## 資料模型(D1)

@@ -7,4 +7,5 @@ export type Env = {
   TURNSTILE_SECRET: string
   ADMIN_TOKEN: string
   IP_SALT: string
+  WISH_SIGN_SECRET: string
 }

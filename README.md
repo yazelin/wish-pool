@@ -28,6 +28,7 @@ npx wrangler secret put GROQ_API_KEY       # Groq API key
 npx wrangler secret put TURNSTILE_SECRET   # Turnstile secret key
 npx wrangler secret put ADMIN_TOKEN        # 自訂一組後台密碼
 npx wrangler secret put IP_SALT            # 隨機字串(投票/限流雜湊用)
+npx wrangler secret put WISH_SIGN_SECRET   # 隨機字串(AI verdict 簽章用,防繞過自動上牆)
 npm run deploy                             # 得到 https://wish-pool.<you>.workers.dev
 ```
 

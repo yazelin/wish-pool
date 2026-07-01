@@ -6,6 +6,7 @@ export type RefineResult =
   | {
       mode: 'final'; title: string; problem: string; current: string; desired: string
       who: string; open_questions: string[]; verdict: 'ok' | 'review'; verdict_reason: string
+      sig?: string
     }
 
 export const SYSTEM_PROMPT = `你是一個 AI 社團「許願池」的引導助手。你唯一的任務:幫社員把「想要 AI 幫忙做的東西」講清楚,好讓開發者能規格化實作。

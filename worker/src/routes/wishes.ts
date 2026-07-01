@@ -3,6 +3,7 @@ import type { Env } from '../env'
 import { createWish, listWishes, getWish, wishExists, addVote, addResponse } from '../lib/d1'
 import { verifyTurnstile } from '../lib/turnstile'
 import { checkAndBump, hashIp } from '../lib/ratelimit'
+import { verifyWish } from '../lib/sign'
 
 const DAY = 86400
 
@@ -42,7 +43,17 @@ wishes.post('/api/wishes', async (c) => {
   const w = b.wish || {}
   const title = String(w.title ?? '').trim()
   if (!title) return c.json({ error: 'title_required' }, 400)
-  const status = b.verdict === 'ok' ? 'published' : 'pending'
+  // verdict:'ok' 只有在後端驗簽(/api/refine 簽的 sig,且內容未被改過)成立時才自動上牆;
+  // 否則(偽造、改過、過期、純表單無 sig)一律進 pending 等 owner 審。
+  let status = 'pending'
+  if (b.verdict === 'ok') {
+    const valid = await verifyWish(
+      c.env.WISH_SIGN_SECRET,
+      { title, problem: w.problem, current: w.current, desired: w.desired, who: w.who },
+      'ok', b.sig, Math.floor(Date.now() / 1000),
+    )
+    if (valid) status = 'published'
+  }
   const id = await createWish(c.env.DB, {
     title,
     problem: w.problem, current: w.current, desired: w.desired, who: w.who, nickname: w.nickname,

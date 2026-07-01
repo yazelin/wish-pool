@@ -138,12 +138,11 @@ const modalInner = $('#wish-modal-inner')
 $('#new-wish').onclick = openWishModal
 
 let chatMessages = []   // {role, content}
-let draft = null        // 最新 final 結果
 
-function closeModal() { modal.classList.remove('open'); modalInner.innerHTML = ''; chatMessages = []; draft = null }
+function closeModal() { modal.classList.remove('open'); modalInner.innerHTML = ''; chatMessages = [] }
 
 function openWishModal() {
-  chatMessages = []; draft = null
+  chatMessages = []
   modal.classList.add('open')
   modalInner.innerHTML = `
     <div class="row" style="justify-content:space-between;align-items:center">
@@ -198,7 +197,6 @@ async function sendChat(text) {
     chatMessages.push({ role: 'assistant', content: result.question })
     renderChatInput()
   } else {
-    draft = result
     botSay('我幫你整理好了,確認一下再送出。')
     renderPreview(result)
   }
@@ -227,26 +225,27 @@ function renderPreview(r) {
     form.appendChild(oq)
   }
   const submit = el('button', 'primary', '送出願望'); submit.style.marginTop = '8px'
-  submit.onclick = () => submitWish(form, r)
+  submit.onclick = () => submitWish(form, r, submit)
   form.appendChild(submit)
   area.appendChild(form)
 }
 
 function renderManualForm() {
-  draft = null
   $('#wm-log').innerHTML = ''
   botSay('直接填吧,只有標題必填,其他能填多少算多少。')
   renderPreview({ title: '', problem: '', current: '', desired: '', who: '', open_questions: [] })
 }
 
-async function submitWish(form, r) {
+async function submitWish(form, r, submit) {
   const get = (n) => form.querySelector(`[name="${n}"]`).value.trim()
   const title = get('title')
   if (!title) { alert('至少給個標題'); return }
+  if (submit) submit.disabled = true   // 防連點造成重複送出
   const payload = {
     wish: { title, problem: get('problem'), current: get('current'), desired: get('desired'), who: get('who'), nickname: get('nickname') || undefined },
     open_questions: r.open_questions || [],
     verdict: r.verdict, // 只有 AI final 且 ok 才會直接上牆;純表單(無 verdict)進 pending
+    sig: r.sig,         // /api/refine 對 ok 內容的簽章;後端驗簽通過才 published,改過/偽造 -> pending
   }
   try {
     const token = await getTurnstileToken()
@@ -258,6 +257,7 @@ async function submitWish(form, r) {
     if (res.status === 'published') { alert('願望已上牆,謝謝你的許願'); loadWall() }
     else alert('已送出,審核通過後就會出現在牆上,謝謝')
   } catch (e) {
+    if (submit) submit.disabled = false
     alert(e.status === 429 ? '今天送出次數已達上限,明天再來' : '送出失敗,請稍後再試')
   }
 }

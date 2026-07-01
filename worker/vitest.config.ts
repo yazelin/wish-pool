@@ -19,6 +19,7 @@ export default defineWorkersConfig(async () => {
               TURNSTILE_SECRET: '1x0000000000000000000000000000000AA',
               ADMIN_TOKEN: 'test-admin-token',
               IP_SALT: 'test-salt',
+              WISH_SIGN_SECRET: 'test-sign-secret',
             },
           },
         },

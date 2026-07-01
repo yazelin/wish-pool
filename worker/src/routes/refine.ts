@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import type { Env } from '../env'
 import { refine, type ChatMsg } from '../lib/llm'
 import { checkAndBump, hashIp } from '../lib/ratelimit'
+import { signWish } from '../lib/sign'
 
 const DAY = 86400
 
@@ -23,7 +24,13 @@ refineRoute.post('/api/refine', async (c) => {
     .map((m: any) => ({ role: m.role, content: String(m.content).slice(0, 4000) }))
 
   try {
-    return c.json(await refine(c.env, clean))
+    const result = await refine(c.env, clean)
+    // 只對「AI 判 ok」的 final 簽章;送出時後端驗簽才會 published,否則進 pending。
+    if (result.mode === 'final' && result.verdict === 'ok') {
+      const sig = await signWish(c.env.WISH_SIGN_SECRET, result, 'ok', Math.floor(Date.now() / 1000) + 3600)
+      return c.json({ ...result, sig })
+    }
+    return c.json(result)
   } catch (e) {
     console.error('refine llm error:', String(e))
     return c.json({ error: 'llm_unavailable' }, 500)

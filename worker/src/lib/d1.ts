@@ -5,13 +5,15 @@ export type NewWish = {
 export type WishRow = {
   id: number; title: string; problem: string | null; current: string | null
   desired: string | null; who: string | null; nickname: string | null
-  status: string; votes: number; created_at: number
+  status: string; votes: number; created_at: number; accepted_answer_id: number | null
 }
 export type Need = { id: number; type: string; body: string; resolved: number }
 export type Update = { id: number; kind: string; body: string; github_handle: string | null; created_at: number }
+export type Answer = { id: number; repo_url: string; note: string | null; github_handle: string | null; votes: number; status: string; created_at: number }
 export type Wish = WishRow & {
   needs: Need[]
   updates: Update[]
+  answers: Answer[]
   responses: { id: number; question_id: number | null; body: string; nickname: string | null; kind: string; created_at: number }[]
 }
 
@@ -48,8 +50,9 @@ export async function getWish(db: D1Database, id: number): Promise<Wish | null> 
   if (!row) return null
   const q = await db.prepare('SELECT id, type, body, resolved FROM needs WHERE wish_id = ? ORDER BY id').bind(id).all<Need>()
   const u = await db.prepare('SELECT id, kind, body, github_handle, created_at FROM updates WHERE wish_id = ? ORDER BY id').bind(id).all<Update>()
+  const a = await db.prepare("SELECT id, repo_url, note, github_handle, votes, status, created_at FROM answers WHERE wish_id = ? AND status = 'visible' ORDER BY votes DESC, created_at DESC").bind(id).all<Answer>()
   const r = await db.prepare('SELECT id, question_id, body, nickname, kind, created_at FROM responses WHERE wish_id = ? ORDER BY id').bind(id).all<Wish['responses'][number]>()
-  return { ...row, needs: q.results, updates: u.results, responses: r.results }
+  return { ...row, needs: q.results, updates: u.results, answers: a.results, responses: r.results }
 }
 
 export async function wishExists(db: D1Database, id: number): Promise<boolean> {
@@ -132,4 +135,40 @@ export async function addUpdate(
 export async function listUpdates(db: D1Database, wishId: number): Promise<Update[]> {
   const { results } = await db.prepare('SELECT id, kind, body, github_handle, created_at FROM updates WHERE wish_id = ? ORDER BY id').bind(wishId).all<Update>()
   return results
+}
+
+export async function createAnswer(
+  db: D1Database, wishId: number, a: { repo_url: string; note?: string; github_handle?: string }, now: number,
+): Promise<number> {
+  const res = await db.prepare('INSERT INTO answers (wish_id, repo_url, note, github_handle, votes, status, created_at) VALUES (?, ?, ?, ?, 0, ?, ?)')
+    .bind(wishId, a.repo_url, a.note ?? null, a.github_handle ?? null, 'visible', now).run()
+  return res.meta.last_row_id as number
+}
+export async function listAnswers(db: D1Database, wishId: number, opts: { includeHidden?: boolean } = {}): Promise<Answer[]> {
+  const where = opts.includeHidden ? '' : "AND status = 'visible'"
+  const { results } = await db.prepare(`SELECT id, repo_url, note, github_handle, votes, status, created_at FROM answers WHERE wish_id = ? ${where} ORDER BY votes DESC, created_at DESC`).bind(wishId).all<Answer>()
+  return results
+}
+export async function addAnswerVote(db: D1Database, answerId: number, fingerprint: string, now: number): Promise<{ ok: boolean; votes: number }> {
+  try {
+    await db.prepare('INSERT INTO answer_votes (answer_id, fingerprint, created_at) VALUES (?, ?, ?)').bind(answerId, fingerprint, now).run()
+  } catch (e) {
+    // 只把 UNIQUE 主鍵衝突當「已投過」;其他錯誤照拋,避免真錯誤被誤報成重複投票。鏡射 addVote。
+    if (!String((e as Error)?.message ?? e).includes('UNIQUE')) throw e
+    const cur = await db.prepare('SELECT votes FROM answers WHERE id = ?').bind(answerId).first<{ votes: number }>()
+    return { ok: false, votes: cur?.votes ?? 0 }
+  }
+  const upd = await db.prepare('UPDATE answers SET votes = votes + 1 WHERE id = ? RETURNING votes').bind(answerId).first<{ votes: number }>()
+  return { ok: true, votes: upd?.votes ?? 0 }
+}
+export async function answerExists(db: D1Database, id: number): Promise<boolean> {
+  const row = await db.prepare('SELECT 1 AS x FROM answers WHERE id = ?').bind(id).first<{ x: number }>()
+  return !!row
+}
+export async function setAnswerStatus(db: D1Database, id: number, status: string): Promise<void> {
+  const s = status === 'hidden' ? 'hidden' : 'visible'
+  await db.prepare('UPDATE answers SET status = ? WHERE id = ?').bind(s, id).run()
+}
+export async function acceptAnswer(db: D1Database, wishId: number, answerId: number): Promise<void> {
+  await db.prepare("UPDATE wishes SET accepted_answer_id = ?, status = 'done' WHERE id = ?").bind(answerId, wishId).run()
 }

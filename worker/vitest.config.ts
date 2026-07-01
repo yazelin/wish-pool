@@ -20,6 +20,7 @@ export default defineWorkersConfig(async () => {
               ADMIN_TOKEN: 'test-admin-token',
               IP_SALT: 'test-salt',
               WISH_SIGN_SECRET: 'test-sign-secret',
+              AGENT_TOKEN: 'test-agent-token',
             },
           },
         },

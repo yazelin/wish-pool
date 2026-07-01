@@ -8,4 +8,5 @@ export type Env = {
   ADMIN_TOKEN: string
   IP_SALT: string
   WISH_SIGN_SECRET: string
+  AGENT_TOKEN: string
 }

@@ -8,7 +8,15 @@ const DAY = 86400
 export const collab = new Hono<{ Bindings: Env }>()
 
 function ip(c: any): string { return c.req.header('CF-Connecting-IP') || '0.0.0.0' }
+function agentToken(c: any): string {
+  const a = c.req.header('Authorization') || ''
+  return a.startsWith('Bearer ') ? a.slice(7) : ''
+}
 async function guard(c: any, token: string, action: string, limit: number): Promise<Response | null> {
+  // 可信 AI agent:帶 Bearer AGENT_TOKEN 即免 Turnstile + 免限流(讓 headless agent 能寫回)。
+  // 空 token 不會通過(agentToken 為 '' 時 '' === AGENT_TOKEN 才成立,而 AGENT_TOKEN 是非空 secret)。
+  const at = agentToken(c)
+  if (at && at === c.env.AGENT_TOKEN) return null
   if (!(await verifyTurnstile(token, ip(c), c.env.TURNSTILE_SECRET))) return c.json({ error: 'turnstile_failed' }, 403)
   const fp = await hashIp(ip(c), c.env.IP_SALT)
   if (!(await checkAndBump(c.env.DB, `${action}:${fp}`, limit, DAY, Math.floor(Date.now() / 1000)))) return c.json({ error: 'rate_limited' }, 429)

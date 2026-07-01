@@ -16,6 +16,36 @@ async function seed() {
   return createWish(env.DB, { title: 'T', status: 'published', open_questions: [] }, 1)
 }
 
+describe('agent token (trusted AI agent bypasses Turnstile)', () => {
+  it('valid Bearer AGENT_TOKEN posts an answer with NO turnstile mock (bypass)', async () => {
+    // 沒有 mockTurnstileOk;disableNetConnect 生效 -> 若走 siteverify 會炸。用 agent token 應短路。
+    const id = await seed()
+    const res = await SELF.fetch(`${O}/api/wishes/${id}/answers`, {
+      method: 'POST', headers: { ...H, Authorization: 'Bearer test-agent-token' },
+      body: JSON.stringify({ repo_url: 'https://github.com/yazelin/wish-pool' }),
+    })
+    expect(res.status).toBe(200)
+    const w = await SELF.fetch(`${O}/api/wishes/${id}`).then((r) => r.json<any>())
+    expect(w.answers[0].repo_url).toBe('https://github.com/yazelin/wish-pool')
+  })
+  it('agent can post an update via token', async () => {
+    const id = await seed()
+    const res = await SELF.fetch(`${O}/api/wishes/${id}/updates`, {
+      method: 'POST', headers: { ...H, Authorization: 'Bearer test-agent-token' },
+      body: JSON.stringify({ kind: 'claim', body: 'agent 認領', github_handle: 'claude' }),
+    })
+    expect(res.status).toBe(200)
+  })
+  it('WRONG bearer token + empty turnstile -> 403 (cannot bypass)', async () => {
+    const id = await seed()
+    const res = await SELF.fetch(`${O}/api/wishes/${id}/answers`, {
+      method: 'POST', headers: { ...H, Authorization: 'Bearer wrong-token' },
+      body: JSON.stringify({ turnstileToken: '', repo_url: 'https://github.com/x/a' }),
+    })
+    expect(res.status).toBe(403)
+  })
+})
+
 describe('POST /api/wishes/:id/answers', () => {
   it('valid repo_url -> {id}; then GET wish shows the answer', async () => {
     mockTurnstileOk(); const id = await seed()

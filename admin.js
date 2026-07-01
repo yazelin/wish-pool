@@ -42,6 +42,9 @@ async function load() {
       }
       foot.appendChild(b)
     })
+    const manage = el('button', null, '管理實作 / 需求')
+    manage.onclick = () => manageDetail(w.id, card)
+    foot.appendChild(manage)
     card.appendChild(foot)
     listEl.appendChild(card)
   })
@@ -55,6 +58,36 @@ async function exportAll() {
     const a = el('a'); a.href = url; a.download = 'wishes.json'; a.click()
     URL.revokeObjectURL(url)
   } catch (e) { alert('匯出失敗,請確認 token 與網路') }
+}
+
+async function manageDetail(id, card) {
+  if (card.querySelector('.mdetail')) { card.querySelector('.mdetail').remove(); return }
+  const w = await (await fetch(`${API}/api/wishes/${id}`)).json()
+  const box = el('div', 'mdetail')
+  box.appendChild(el('div', 'muted', '實作版本:'))
+  ;(w.answers || []).forEach((a) => {
+    const row = el('div', 'card-foot')
+    const link = el('a', 'repo-link'); link.href = a.repo_url; link.textContent = a.repo_url; link.target = '_blank'; link.rel = 'noopener nofollow'
+    row.appendChild(link)
+    const hide = el('button', '', '隱藏')
+    hide.onclick = async () => { await adminApi(`/api/admin/answers/${a.id}/status`, { method: 'POST', body: JSON.stringify({ status: 'hidden' }) }); card.querySelector('.mdetail')?.remove(); manageDetail(id, card) }
+    const accept = el('button', 'primary', '採用(設已實現)')
+    accept.onclick = async () => { await adminApi(`/api/admin/wishes/${id}/accept`, { method: 'POST', body: JSON.stringify({ answer_id: a.id }) }); load() }
+    row.appendChild(hide); row.appendChild(accept)
+    box.appendChild(row)
+  })
+  box.appendChild(el('div', 'muted', '還缺什麼:'))
+  ;(w.needs || []).forEach((n) => {
+    const row = el('div', 'card-foot')
+    row.appendChild(el('span', null, `[${n.type}] ${n.body}` + (n.resolved ? ' (已解)' : '')))
+    if (!n.resolved) {
+      const res = el('button', '', '標已解')
+      res.onclick = async () => { await adminApi(`/api/admin/needs/${n.id}/resolve`, { method: 'POST' }); card.querySelector('.mdetail')?.remove(); manageDetail(id, card) }
+      row.appendChild(res)
+    }
+    box.appendChild(row)
+  })
+  card.appendChild(box)
 }
 
 document.querySelectorAll('.sort').forEach((b) => b.onclick = () => {

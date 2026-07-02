@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Env } from '../env'
-import { listByStatus, setStatus, exportAll, setAnswerStatus, acceptAnswer, resolveNeed, answerExists, deleteWish, getWish, setDiscussionUrl } from '../lib/d1'
+import { listByStatus, listByStatusAdmin, setStatus, exportAll, setAnswerStatus, acceptAnswer, resolveNeed, answerExists, deleteWish, getWish, setDiscussionUrl } from '../lib/d1'
 import { createWishDiscussion } from '../lib/github'
 
 const STATUSES = ['pending', 'published', 'adopted', 'building', 'done', 'hidden']
@@ -16,7 +16,7 @@ admin.use('/api/admin/*', async (c, next) => {
 
 admin.get('/api/admin/wishes', async (c) => {
   const status = c.req.query('status') || 'pending'
-  return c.json({ wishes: await listByStatus(c.env.DB, status) })
+  return c.json({ wishes: await listByStatusAdmin(c.env.DB, status) })
 })
 
 admin.post('/api/admin/wishes/:id/status', async (c) => {

@@ -98,6 +98,25 @@ export async function listByStatus(db: D1Database, status: string): Promise<Wish
   return results
 }
 
+// 後台卡片用:一句 SQL 帶齊「該不該進下一狀態」的決策訊號
+export type AdminWishRow = WishRow & {
+  needs_total: number; needs_open: number; claims: number; updates_count: number
+  answers_count: number; top_answer_votes: number | null; last_update: string | null
+}
+export async function listByStatusAdmin(db: D1Database, status: string): Promise<AdminWishRow[]> {
+  const { results } = await db.prepare(`SELECT w.*,
+      (SELECT COUNT(*) FROM responses r WHERE r.wish_id = w.id) AS echoes,
+      (SELECT COUNT(*) FROM needs n WHERE n.wish_id = w.id) AS needs_total,
+      (SELECT COUNT(*) FROM needs n WHERE n.wish_id = w.id AND n.resolved = 0) AS needs_open,
+      (SELECT COUNT(*) FROM updates u WHERE u.wish_id = w.id AND u.kind = 'claim') AS claims,
+      (SELECT COUNT(*) FROM updates u WHERE u.wish_id = w.id) AS updates_count,
+      (SELECT COUNT(*) FROM answers a WHERE a.wish_id = w.id AND a.status = 'visible') AS answers_count,
+      (SELECT MAX(a.votes) FROM answers a WHERE a.wish_id = w.id AND a.status = 'visible') AS top_answer_votes,
+      (SELECT u.kind || ':' || u.body FROM updates u WHERE u.wish_id = w.id ORDER BY u.id DESC LIMIT 1) AS last_update
+    FROM wishes w WHERE w.status = ? ORDER BY w.created_at DESC`).bind(status).all<AdminWishRow>()
+  return results
+}
+
 export async function setStatus(db: D1Database, id: number, status: string): Promise<void> {
   await db.prepare('UPDATE wishes SET status = ? WHERE id = ?').bind(status, id).run()
 }

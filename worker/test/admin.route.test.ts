@@ -80,6 +80,21 @@ describe('admin phase2', () => {
     const noauth = await SELF.fetch(`${O}/api/admin/needs/1/resolve`, { method: 'POST' })
     expect(noauth.status).toBe(401)
   })
+  it('admin list carries decision signals (needs/claims/answers/last_update)', async () => {
+    const { createWish, createNeed, addUpdate, createAnswer, addResponse } = await import('../src/lib/d1')
+    const id = await createWish(env.DB, { title: 'D', status: 'published', open_questions: [] }, 1)
+    await createNeed(env.DB, id, 'info', 'q1')
+    await addUpdate(env.DB, id, { kind: 'claim', body: '我來' }, 2)
+    await createAnswer(env.DB, id, { repo_url: 'https://github.com/x/a' }, 3)
+    await addResponse(env.DB, id, { body: '我也要', kind: 'metoo' }, 4)
+    const res = await SELF.fetch(`${O}/api/admin/wishes?status=published`, { headers: AUTH }).then((r) => r.json<any>())
+    const w = res.wishes.find((x: any) => x.id === id)
+    expect(w.needs_total).toBe(1); expect(w.needs_open).toBe(1)
+    expect(w.claims).toBe(1); expect(w.answers_count).toBe(1)
+    expect(w.echoes).toBe(1)
+    expect(w.last_update).toContain('claim:我來')
+  })
+
   it('hard delete removes the wish and its children', async () => {
     const { createWish, createAnswer, addUpdate, createNeed } = await import('../src/lib/d1')
     const id = await createWish(env.DB, { title: 'DEL', status: 'done', open_questions: [] }, 1)

@@ -56,8 +56,23 @@ async function load() {
   data.wishes.forEach((w) => {
     const card = el('div', 'card')
     card.appendChild(el('h3', null, `#${w.id} ${w.title}`))
-    const meta = [w.problem && '問題:' + w.problem, w.desired && '期望:' + w.desired, `票:${w.votes}`].filter(Boolean).join(' / ')
+    const meta = [w.problem && '問題:' + w.problem, w.desired && '期望:' + w.desired, w.who && '誰用:' + w.who].filter(Boolean).join(' / ')
     card.appendChild(el('div', 'muted', meta))
+    // 決策儀表:進下一狀態前要看的訊號
+    const dash = el('div', null,
+      `幣 ${w.votes} · 共鳴 ${w.echoes ?? 0} · 缺口未解 ${w.needs_open ?? 0}/${w.needs_total ?? 0} · 認領 ${w.claims ?? 0} · 實作 ${w.answers_count ?? 0} 版` +
+      (w.top_answer_votes ? `(最高票 ${w.top_answer_votes})` : ''))
+    dash.style.cssText = 'margin-top:6px;font-size:.9rem;color:var(--amber-soft)'
+    card.appendChild(dash)
+    const when = new Date(w.created_at * 1000).toLocaleString('zh-TW', { hour12: false })
+    const act = el('div', 'muted', (w.last_update ? `最新動態:${w.last_update.slice(0, 70)} · ` : '尚無認領/進度 · ') + `許於 ${when}`)
+    act.style.fontSize = '.85rem'
+    card.appendChild(act)
+    if (w.discussion_url) {
+      const d = el('a', 'repo-link', '看討論串')
+      d.href = w.discussion_url; d.target = '_blank'; d.rel = 'noopener'
+      card.appendChild(d)
+    }
     const foot = el('div', 'card-foot')
     ;(NEXT[status] || []).forEach((s) => {
       const b = el('button', s === 'hidden' ? '' : 'primary', LABEL[s])

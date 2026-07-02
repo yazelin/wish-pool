@@ -167,9 +167,9 @@ async function loadPond() {
     wishCache = wishes
     const done = wishes.filter((w) => w.status === 'done')
     const floating = wishes.filter((w) => w.status !== 'done')
-    band.innerHTML = ''; lan.innerHTML = ''
+    lan.innerHTML = ''
     $('#starband-wrap').style.display = done.length ? '' : 'none'
-    done.forEach((w) => band.appendChild(renderStar(w)))
+    buildStarRiver(done)
     floating.forEach((w) => lan.appendChild(renderLantern(w)))
     note.textContent = '池面還很安靜 —— 投下第一個願望吧。'
     note.style.display = floating.length ? 'none' : 'block'
@@ -179,6 +179,81 @@ async function loadPond() {
     note.style.display = 'block'
   }
 }
+
+/* ============ 成真星河:三排錯落、可拖曳、慢漂、無限輪迴 ============ */
+let riverWishes = []
+let riverCleanup = null
+function jitterFor(id, idx) { let h = (id * 31 + idx * 17) % 37; return 10 + h }   // 決定性錯落(不用亂數,重繪不跳)
+
+function buildStarRiver(wishes) {
+  riverWishes = wishes
+  if (riverCleanup) { riverCleanup(); riverCleanup = null }
+  const band = $('#starband')
+  band.innerHTML = ''
+  band.classList.add('river')
+  if (!wishes.length) return
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
+  // 分三排(不足三排就幾排)
+  const lanes = [[], [], []]
+  wishes.forEach((w, i) => lanes[i % 3].push(w))
+  const rows = lanes.filter((l) => l.length).map((list, ri) => {
+    const row = el('div', 'river-row')
+    const strip = el('div', 'river-strip')
+    row.appendChild(strip); band.appendChild(row)
+    return { strip, list, ri, setW: 0 }
+  })
+  // 填一組、量寬,再複製到蓋滿兩個視窗寬(複製組 aria-hidden 免重複朗讀)
+  rows.forEach((r) => {
+    const addSet = (dup) => r.list.forEach((w, idx) => {
+      const st = renderStar(w)
+      st.style.marginLeft = jitterFor(w.id, idx + r.ri * 7) + 'px'
+      if (dup) { st.tabIndex = -1; st.setAttribute('aria-hidden', 'true') }
+      r.strip.appendChild(st)
+    })
+    addSet(false)
+    r.setW = r.strip.scrollWidth
+    if (r.setW < 40) return
+    let guard = 0
+    while (r.strip.scrollWidth < innerWidth * 2 + r.setW && guard++ < 30) addSet(true)
+  })
+  // 引擎:共用 offset,逐排視差速度,modulo 輪迴
+  const speeds = [1, .82, 1.13]
+  let offset = 0, dragging = false, lastX = 0, moved = 0, hover = false, suppress = false
+  const apply = () => rows.forEach((r) => {
+    if (!r.setW) return
+    const m = ((offset * speeds[r.ri] % r.setW) + r.setW) % r.setW
+    r.strip.style.transform = `translateX(${-m}px)`
+  })
+  let rafId = null
+  const drift = () => {
+    if (!dragging && !hover) { offset += .35; apply() }
+    rafId = requestAnimationFrame(drift)
+  }
+  if (!reduced) rafId = requestAnimationFrame(drift)
+  else apply()
+  band.addEventListener('pointerenter', () => { hover = true })
+  band.addEventListener('pointerleave', () => { hover = false })
+  band.addEventListener('pointerdown', (e) => { dragging = true; lastX = e.clientX; moved = 0; band.setPointerCapture(e.pointerId) })
+  band.addEventListener('pointermove', (e) => {
+    if (!dragging) return
+    const dx = e.clientX - lastX; lastX = e.clientX
+    moved += Math.abs(dx); offset -= dx; apply()
+  })
+  const endDrag = () => { if (dragging && moved > 6) suppress = true; dragging = false }
+  band.addEventListener('pointerup', endDrag)
+  band.addEventListener('pointercancel', endDrag)
+  band.addEventListener('click', (e) => { if (suppress) { e.stopPropagation(); e.preventDefault(); suppress = false } }, true)
+  band.addEventListener('wheel', (e) => {
+    const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : (e.shiftKey ? e.deltaY : 0)
+    if (d) { offset += d; apply(); e.preventDefault() }
+  }, { passive: false })
+  apply()
+  riverCleanup = () => { if (rafId) cancelAnimationFrame(rafId) }
+}
+// 字型載入後寬度會變 → 重建一次確保接縫無誤;視窗改寬也重建
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (riverWishes.length) buildStarRiver(riverWishes) })
+let riverResizeT = null
+addEventListener('resize', () => { clearTimeout(riverResizeT); riverResizeT = setTimeout(() => { if (riverWishes.length) buildStarRiver(riverWishes) }, 250) })
 
 /* ============ 願望燈打開:bottom-sheet(情感層 + 「我來幫忙實現」折疊層) ============ */
 const sheetBg = $('#sheet-bg'), sheet = $('#sheet')

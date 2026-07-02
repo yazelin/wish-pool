@@ -110,6 +110,18 @@ const pond = (() => {
   return { ripple, coin: reduced ? (x, y, done) => { done && done() } : coin }
 })()
 
+// GitHub repo -> OG 預覽圖(opengraph.githubassets.com;作者可在 repo Settings -> Social preview 自訂)。
+// 僅接受 github.com,owner/repo 逐段 encodeURIComponent,img 來源固定為 githubassets,不渲染任意外部圖。
+function repoPreview(repoUrl) {
+  try {
+    const u = new URL(repoUrl)
+    if (u.hostname !== 'github.com') return null
+    const seg = u.pathname.split('/').filter(Boolean)
+    if (seg.length < 2) return null
+    return `https://opengraph.githubassets.com/1/${encodeURIComponent(seg[0])}/${encodeURIComponent(seg[1])}`
+  } catch (e) { return null }
+}
+
 /* ============ 池面渲染:星帶(成真)+ 願望燈 ============ */
 function wishSentence(w) {
   // desired 可能是「功能1;功能2」清單或一句話
@@ -196,6 +208,8 @@ async function openSheet(id) {
     cele.appendChild(el('p', 'celebrate-line', '這個願望成真了'))
     const acc = (w.answers || []).find((a) => a.id === w.accepted_answer_id) || (w.answers || [])[0]
     if (acc) {
+      const shot = repoPreview(acc.repo_url)
+      if (shot) { const im = el('img', 'shot'); im.src = shot; im.alt = '實現成果預覽'; im.loading = 'lazy'; cele.appendChild(im) }
       const link = el('a', 'celebrate-repo')
       link.href = acc.repo_url; link.textContent = acc.repo_url
       link.target = '_blank'; link.rel = 'noopener nofollow'
@@ -278,6 +292,8 @@ async function openSheet(id) {
     if (a.id === w.accepted_answer_id) top.appendChild(el('span', 'phrase done', '被採用'))
     else if (i === 0 && a.votes > 0) top.appendChild(el('span', 'phrase adopted', '目前最高票'))
     ans.appendChild(top)
+    const ashot = repoPreview(a.repo_url)
+    if (ashot) { const im = el('img', 'shot shot-sm'); im.src = ashot; im.alt = '實作預覽'; im.loading = 'lazy'; ans.appendChild(im) }
     if (a.note) ans.appendChild(el('div', null, a.note))
     const foot = el('div', 'answer-foot')
     const vb = el('button', 'vote'); vb.setAttribute('aria-label', '為這個實作版本投一枚幣')

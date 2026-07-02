@@ -277,3 +277,8 @@ html.theme-day body { background:
 .theme-day .mdetail { background: #f4faf7; border-color: #cfe6dc; }
 .theme-day .need { background: rgba(31,157,178,.05); }
 .theme-day .answer { background: linear-gradient(165deg, #f0f8f4, #e6f2ec); border-color: #d5e9df; }
+
+/* 實現成果預覽圖(GitHub OG 卡) */
+.shot { display: block; width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 10px 0 4px; }
+.shot-sm { max-width: 420px; }
+.theme-day .shot { border-color: #d5e9df; }

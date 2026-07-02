@@ -305,7 +305,7 @@ addEventListener('keydown', (e) => { if (e.key === 'Escape' && openSheetId != nu
 
 async function openSheet(id) {
   let w
-  try { w = await api(`/api/wishes/${id}`) } catch (e) { alert('這盞燈暫時打不開,請稍後再試'); return }
+  try { w = await api(`/api/wishes/${id}`) } catch (e) { alert('這個願望暫時打不開,請稍後再試'); return }
   openSheetId = id
   document.body.style.overflow = 'hidden'
   sheet.innerHTML = ''
@@ -314,7 +314,7 @@ async function openSheet(id) {
   const head = el('div', 'sheet-head')
   head.appendChild(el('span', 'phrase ' + w.status, PHRASE[w.status] || ''))
   const x = el('button', 'sheet-close', '關')
-  x.setAttribute('aria-label', '關上這盞燈')
+  x.setAttribute('aria-label', '關閉')
   x.onclick = closeSheet
   head.appendChild(x)
   sheet.appendChild(head)
@@ -681,7 +681,7 @@ async function submitWish(form, r, submit) {
     closeModal()
     if (res.status === 'published') {
       pond.coin(innerWidth / 2, innerHeight * .45, () => {})
-      alert('你的願望已經落進池裡,亮起來了')
+      alert('你的願望已經落進池裡了')
       loadPond()
     } else alert('已收到,站方看過後就會出現在池面上,謝謝')
   } catch (e) {

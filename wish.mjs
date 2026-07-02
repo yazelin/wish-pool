@@ -3,7 +3,13 @@
 // 讀取免登入;寫入需環境變數 WISHPOOL_AGENT_TOKEN(可信 agent token,免 Turnstile)。
 // 用法:node wish.mjs list | show <id> | claim <id> <note> | progress <id> <note> | answer <id> <repo_url> [note]
 const API = process.env.WISHPOOL_API || 'https://wish-pool.yazelinj303.workers.dev'
-const TOKEN = process.env.WISHPOOL_AGENT_TOKEN || ''
+import { readFileSync } from 'node:fs'
+import { homedir } from 'node:os'
+function loadToken() {
+  if (process.env.WISHPOOL_AGENT_TOKEN) return process.env.WISHPOOL_AGENT_TOKEN
+  try { return readFileSync(homedir() + '/.config/wishpool/token', 'utf8').trim() } catch (e) { return '' }
+}
+const TOKEN = loadToken()
 const HANDLE = process.env.WISHPOOL_HANDLE || undefined
 const LABEL = { info: '缺資訊', skill: '缺技能', resource: '缺資源' }
 

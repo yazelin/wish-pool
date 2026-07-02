@@ -428,7 +428,7 @@ async function openSheet(id) {
   const tools = el('div', 'helper-tools')
   const claim = el('button', null, '我來實現'); claim.onclick = () => submitUpdate(w.id, true)
   const prog = el('button', null, '回報進度'); prog.onclick = () => submitUpdate(w.id, false)
-  const ansB = el('button', 'primary', '交出我的實作'); ansB.onclick = () => submitAnswer(w.id)
+  const ansB = el('button', 'primary', '交實作 / 指路現成專案'); ansB.onclick = () => submitAnswer(w.id)
   const needB = el('button', null, '補一個缺口'); needB.onclick = () => submitNeed(w.id)
   const dl = el('button', null, '下載規格'); dl.onclick = () => downloadSpec(w)
   ;[claim, prog, ansB, needB, dl].forEach((b) => tools.appendChild(b))
@@ -496,9 +496,9 @@ async function postWithTurnstile(path, payload, okMsg) {
   } catch (e) { alert(e.status === 429 ? '今天次數已達上限,明天再來' : '送出失敗,請稍後再試') }
 }
 async function submitAnswer(wishId) {
-  const repo = prompt('你的 repo 網址(https://github.com/...):')
+  const repo = prompt('repo 網址(自己做的,或你知道的現成專案都可以 —— 幫忙指路也算實現):')
   if (!repo || !/^https?:\/\//.test(repo.trim())) { if (repo !== null) alert('請貼有效的 http(s) 網址'); return }
-  const note = prompt('一句話說明這個版本(可留空):') || undefined
+  const note = prompt('一句話說明(指路現成專案請註明「已有現成」,可留空):') || undefined
   const handle = prompt('你的 GitHub 帳號(選填,未驗證):') || undefined
   await postWithTurnstile(`/api/wishes/${wishId}/answers`, { repo_url: repo.trim(), note, github_handle: handle }, '收到你的實作,謝謝你讓願望往前一步')
 }

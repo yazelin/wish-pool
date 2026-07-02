@@ -35,6 +35,8 @@ function getTurnstileToken() {
 }
 
 /* ============ 水面(canvas):微光粒 + 漣漪環 + 許願幣 ============ */
+const isDay = () => document.documentElement.classList.contains('theme-day')
+
 const pond = (() => {
   const cv = $('#pond'); if (!cv) return { ripple() {}, coin() {} }
   const ctx = cv.getContext('2d')
@@ -66,7 +68,8 @@ const pond = (() => {
       m.x = (m.x + m.s) % 1
       const tw = .25 + Math.sin(m.p * 1.7) * .18
       ctx.beginPath(); ctx.arc(x, y, m.r, 0, 6.28)
-      ctx.fillStyle = `rgba(244,205,120,${tw})`; ctx.fill()
+      // 晨光=湖面陽光碎金(淡);夜晚=螢光(暖金)
+      ctx.fillStyle = isDay() ? `rgba(214,166,60,${tw * .45})` : `rgba(244,205,120,${tw})`; ctx.fill()
     }
     // 漣漪
     for (let i = ripples.length - 1; i >= 0; i--) {
@@ -74,7 +77,7 @@ const pond = (() => {
       r.r += (r.max - r.r) * .045; r.a *= .965
       if (r.a < .01) { ripples.splice(i, 1); continue }
       ctx.beginPath(); ctx.ellipse(r.x, r.y, r.r, r.r * .38, 0, 0, 6.28)
-      ctx.strokeStyle = `rgba(255,216,138,${r.a})`; ctx.lineWidth = 1.4; ctx.stroke()
+      ctx.strokeStyle = isDay() ? `rgba(90,170,155,${r.a})` : `rgba(255,216,138,${r.a})`; ctx.lineWidth = 1.4; ctx.stroke()
     }
     // 許願幣(拋物落水)
     for (let i = coins.length - 1; i >= 0; i--) {
@@ -382,11 +385,21 @@ function downloadSpec(w) {
 }
 
 /* ============ 排序 + deep-link ============ */
-document.querySelectorAll('.sort').forEach((b) => b.onclick = () => {
-  document.querySelectorAll('.sort').forEach((x) => { x.classList.remove('active'); x.setAttribute('aria-pressed', 'false') })
+document.querySelectorAll('.sort[data-sort]').forEach((b) => b.onclick = () => {
+  document.querySelectorAll('.sort[data-sort]').forEach((x) => { x.classList.remove('active'); x.setAttribute('aria-pressed', 'false') })
   b.classList.add('active'); b.setAttribute('aria-pressed', 'true'); currentSort = b.dataset.sort; loadPond()
 })
-document.querySelectorAll('.sort').forEach((b) => b.setAttribute('aria-pressed', b.classList.contains('active') ? 'true' : 'false'))
+document.querySelectorAll('.sort[data-sort]').forEach((b) => b.setAttribute('aria-pressed', b.classList.contains('active') ? 'true' : 'false'))
+
+/* 主題切換:預設晨光,可切夜晚(記在 localStorage) */
+const themeBtn = $('#theme-toggle')
+function syncThemeBtn() { themeBtn.textContent = isDay() ? '夜晚' : '晨光' }
+themeBtn.onclick = () => {
+  document.documentElement.classList.toggle('theme-day')
+  try { localStorage.setItem('wishpool_theme', isDay() ? 'day' : 'night') } catch (e) { /* ignore */ }
+  syncThemeBtn()
+}
+syncThemeBtn()
 
 loadPond().then(() => {
   const m = location.hash.match(/^#wish-(\d+)$/)
@@ -418,7 +431,7 @@ function openWishModal() {
     </div>`
   $('#wm-close').onclick = closeModal
   $('#wm-manual').onclick = renderManualForm
-  botSay('嗨,你想要一個什麼樣的作品?一句話說說看 —— 工具、遊戲、小服務都可以。')
+  botSay('(湖面泛起漣漪,女神緩緩浮出)孩子,你想要的,是一個什麼樣的作品呢?一句話說說看 —— 工具、遊戲、小服務都可以。')
   renderChatInput()
 }
 

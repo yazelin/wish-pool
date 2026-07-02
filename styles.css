@@ -219,3 +219,45 @@ label.muted { display: block; font-size: .82rem; margin-bottom: 5px; }
   .sheet { animation: none; }
 }
 @media (min-width: 640px) { .sheet-bg { align-items: center; padding: 20px; } .sheet { border-radius: 22px; border-bottom: 1px solid rgba(244,181,58,.25); } }
+
+/* ============ 晨光湖(day theme,html.theme-day;預設)============ */
+:root.theme-day {
+  --bg: #eef7f3; --bg-2: #f6fbf8;
+  --surface: #ffffff; --surface-2: #f0f8f4; --surface-3: #e3f2ec;
+  --border: #cfe6dc; --border-soft: #e0efe8;
+  --text: #2c4a44; --muted: #5d7d75; --dim: #8ba49c;
+  --amber: #f2b53c; --amber-deep: #e09a1f; --amber-soft: #b57f12;
+  --cyan: #1f9db2; --cyan-deep: #177f92; --on-amber: #3a2a05;
+  --success: #2f9e6e; --building: #d98f22; --adopted: #4a8ec7; --danger: #d96a5f;
+  --overlay: rgba(190,220,212,.55);
+  --shadow: 0 10px 28px rgba(70,130,115,.13);
+  --glow-amber: 0 0 26px rgba(242,181,60,.12);
+}
+html.theme-day body.pond-page { background:
+  radial-gradient(1100px 500px at 50% -6%, rgba(255,244,205,.75), transparent 60%),
+  radial-gradient(900px 500px at 12% 10%, rgba(200,238,250,.5), transparent 55%),
+  linear-gradient(180deg, #f2fbff 0%, #e6f6f0 34%, #d4ede4 62%, #c6e6dd 100%);
+  background-attachment: fixed; }
+.theme-day header.hero h1 { background: linear-gradient(180deg, #2e5a52 20%, #177f92 120%); -webkit-background-clip: text; background-clip: text; }
+.theme-day header.hero .kicker { color: #b57f12; border-color: rgba(226,170,60,.45); background: rgba(255,236,190,.4); }
+.theme-day .star { background: rgba(255,247,224,.85); border-color: rgba(226,170,60,.5); color: #8a6410; }
+.theme-day .star-dot { box-shadow: 0 0 10px 3px rgba(242,181,60,.5); }
+.theme-day .lantern { background: linear-gradient(170deg, #ffffff, #f4faf7); border-color: #d5e9df;
+  box-shadow: 0 12px 30px rgba(70,130,115,.12), inset 0 1px 0 #fff; }
+.theme-day .lantern:hover, .theme-day .lantern:focus-visible { border-color: #a9d4c4; box-shadow: 0 16px 36px rgba(70,130,115,.18); }
+.theme-day .lantern::after { background: radial-gradient(50% 100% at 50% 0%, rgba(140,200,180,.28), transparent 75%); }
+.theme-day .lantern h3, .theme-day .sheet-title { color: #274741; }
+.theme-day .sheet { background: linear-gradient(175deg, #ffffff, #f2f9f5 60%); border-color: #cfe6dc; }
+.theme-day .sheet-label { color: #177f92; }
+.theme-day .sheet-label::before { background: #f2b53c; }
+.theme-day .hope, .theme-day .hope-list, .theme-day .kv dd { color: #3d5b54; }
+.theme-day .echo { background: rgba(210,240,228,.5); border-left-color: rgba(31,157,178,.5); }
+.theme-day .celebrate { background: rgba(214,244,228,.6); border-color: rgba(47,158,110,.4); }
+.theme-day .msg.bot { background: #e8f4ee; color: #2c4a44; }
+.theme-day .modal, .theme-day input, .theme-day textarea { background: #ffffff; border-color: #cfe6dc; color: #2c4a44; }
+.theme-day textarea, .theme-day input { background: #fbfdfc; }
+.theme-day button { background: #ffffff; border-color: #cfe6dc; color: #2c4a44; }
+.theme-day button.primary { background: linear-gradient(135deg, var(--amber), var(--amber-deep)); color: var(--on-amber); border-color: transparent; }
+.theme-day button.sort { background: transparent; border-color: transparent; color: #5d7d75; }
+.theme-day button.sort.active { background: #dff0e9; color: #177f92; }
+.theme-day .footer-icon { background: #ffffff; border-color: #cfe6dc; color: #5d7d75; }

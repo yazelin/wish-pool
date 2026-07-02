@@ -416,6 +416,13 @@ async function openSheet(id) {
     const dnum = Number((w.discussion_url.match(/\/discussions\/(\d+)/) || [])[1])
     if (dnum) {
       sheet.appendChild(el('p', 'sheet-label', '這個願望的討論串'))
+      const subHint = el('p', 'muted sub-hint')
+      subHint.append('想在這個願望有新實作、認領或進度時收到通知:到 ')
+      const subLink = el('a', 'repo-link', 'GitHub 串')
+      subLink.href = w.discussion_url; subLink.target = '_blank'; subLink.rel = 'noopener'
+      subHint.appendChild(subLink)
+      subHint.append(' 按右上的 Subscribe(訂閱),GitHub 會幫你寄通知 —— 免費,只要有 GitHub 帳號。')
+      sheet.appendChild(subHint)
       const gbox = el('div', 'giscus-box')
       const gs = document.createElement('script')
       gs.src = 'https://giscus.app/client.js'

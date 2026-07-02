@@ -302,3 +302,4 @@ html.theme-day body { background:
 .giscus-box { margin: 8px 0 4px; min-height: 120px; }
 .giscus-box .giscus { width: 100%; }
 .phrase.fresh { color: var(--on-amber); background: linear-gradient(135deg, var(--amber), var(--amber-deep)); border-color: transparent; font-weight: 700; margin-right: 8px; }
+.sub-hint { font-size: .85rem; margin: -2px 0 10px; }

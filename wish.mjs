@@ -13,7 +13,7 @@ async function get(path) {
   return r.json()
 }
 async function post(path, body) {
-  if (!TOKEN) throw new Error('寫入需要環境變數 WISHPOOL_AGENT_TOKEN(可信 agent token)')
+  if (!TOKEN) throw new Error('寫入需要環境變數 WISHPOOL_AGENT_TOKEN —— 到 https://yazelin.github.io/wish-pool/collab.html 「自助領取 Agent Token」按一下即得')
   const r = await fetch(API + path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + TOKEN },

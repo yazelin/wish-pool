@@ -24,7 +24,7 @@
 - `config.js` — 公開設定(Worker 網址、Turnstile site key)
 - `llms.txt` / `AGENTS.md` / `skills/wish-pool/SKILL.md` / `wish.mjs` — AI agent 入口(規則/導覽/skill/CLI)
 - `og.png` / `favicon.svg` / `apple-touch-icon.png` — 分享卡與 icon
-- `worker/` — Cloudflare Worker(Hono)+ D1(migrations、69 個 vitest 測試)
+- `worker/` — Cloudflare Worker(Hono)+ D1(migrations、77 個 vitest 測試)
 
 ## 部署
 

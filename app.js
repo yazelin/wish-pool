@@ -357,6 +357,12 @@ async function openSheet(id) {
   const echoBtn = el('button', null, '留言:我也想要 / 我有想法')
   echoBtn.onclick = () => sendEcho(w.id)
   act.appendChild(echoBtn)
+  if (w.discussion_url) {
+    const disc = el('a', 'repo-link', '到 GitHub 參與這個願望的討論')
+    disc.href = w.discussion_url; disc.target = '_blank'; disc.rel = 'noopener'
+    disc.style.alignSelf = 'center'
+    act.appendChild(disc)
+  }
   sheet.appendChild(act)
 
   // 共鳴聲(responses;有 question_id 的已掛在缺口下,這裡只放自由留言)

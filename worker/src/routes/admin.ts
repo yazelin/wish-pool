@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import type { Env } from '../env'
-import { listByStatus, setStatus, exportAll, setAnswerStatus, acceptAnswer, resolveNeed, answerExists, deleteWish } from '../lib/d1'
+import { listByStatus, setStatus, exportAll, setAnswerStatus, acceptAnswer, resolveNeed, answerExists, deleteWish, getWish, setDiscussionUrl } from '../lib/d1'
+import { createWishDiscussion } from '../lib/github'
 
 const STATUSES = ['pending', 'published', 'adopted', 'building', 'done', 'hidden']
 
@@ -21,7 +22,17 @@ admin.get('/api/admin/wishes', async (c) => {
 admin.post('/api/admin/wishes/:id/status', async (c) => {
   const b = await c.req.json().catch(() => ({}))
   if (!STATUSES.includes(b.status)) return c.json({ error: 'bad_status' }, 400)
-  await setStatus(c.env.DB, Number(c.req.param('id')), b.status)
+  const id = Number(c.req.param('id'))
+  await setStatus(c.env.DB, id, b.status)
+  if (b.status === 'published') {
+    c.executionCtx.waitUntil((async () => {
+      const w = await getWish(c.env.DB, id)
+      if (w && !w.discussion_url) {
+        const u = await createWishDiscussion(c.env, w).catch((e) => { console.error('discussion create failed:', String(e)); return null })
+        if (u) await setDiscussionUrl(c.env.DB, id, u)
+      }
+    })())
+  }
   return c.json({ ok: true })
 })
 

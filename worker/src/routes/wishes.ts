@@ -4,6 +4,8 @@ import { createWish, listWishes, getWish, wishExists, addVote, addResponse } fro
 import { verifyTurnstile } from '../lib/turnstile'
 import { checkAndBump, hashIp } from '../lib/ratelimit'
 import { verifyWish } from '../lib/sign'
+import { createWishDiscussion } from '../lib/github'
+import { setDiscussionUrl } from '../lib/d1'
 
 const DAY = 86400
 
@@ -59,6 +61,13 @@ wishes.post('/api/wishes', async (c) => {
     problem: w.problem, current: w.current, desired: w.desired, who: w.who, nickname: w.nickname,
     status, open_questions: Array.isArray(b.open_questions) ? b.open_questions : [],
   }, Math.floor(Date.now() / 1000))
+  if (status === 'published') {
+    c.executionCtx.waitUntil(
+      createWishDiscussion(c.env, { id, title, problem: w.problem, current: w.current, desired: w.desired, who: w.who })
+        .then((u) => (u ? setDiscussionUrl(c.env.DB, id, u) : undefined))
+        .catch((e) => console.error('discussion create failed:', String(e))),
+    )
+  }
   return c.json({ id, status })
 })
 

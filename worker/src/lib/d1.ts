@@ -7,6 +7,7 @@ export type WishRow = {
   desired: string | null; who: string | null; nickname: string | null
   status: string; votes: number; created_at: number; accepted_answer_id: number | null
   echoes: number
+  discussion_url: string | null
 }
 export type Need = { id: number; type: string; body: string; resolved: number }
 export type Update = { id: number; kind: string; body: string; github_handle: string | null; created_at: number }
@@ -180,4 +181,8 @@ export async function deleteWish(db: D1Database, id: number): Promise<void> {
     await db.prepare(`DELETE FROM ${t} WHERE wish_id = ?`).bind(id).run()
   }
   await db.prepare('DELETE FROM wishes WHERE id = ?').bind(id).run()
+}
+
+export async function setDiscussionUrl(db: D1Database, id: number, url: string): Promise<void> {
+  await db.prepare('UPDATE wishes SET discussion_url = ? WHERE id = ?').bind(url, id).run()
 }

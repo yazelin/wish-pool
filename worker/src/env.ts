@@ -9,4 +9,5 @@ export type Env = {
   IP_SALT: string
   WISH_SIGN_SECRET: string
   AGENT_TOKEN: string
+  GH_PAT?: string
 }

@@ -144,8 +144,14 @@ label.muted { display: block; font-size: .82rem; margin-bottom: 5px; }
 
 /* 星帶:成真的願望 */
 .band-label { text-align: center; color: var(--dim); font-size: .8rem; letter-spacing: .22em; margin: 6px 0 10px; }
-#starband { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; padding: 2px 0 6px; }
-.star { display: inline-flex; align-items: center; gap: 9px; max-width: 300px; text-align: left;
+#starband { display: flex; gap: 12px; flex-wrap: nowrap; overflow-x: auto; padding: 2px 4px 10px;
+  scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
+#starband::-webkit-scrollbar { height: 6px; }
+#starband::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+/* 少量時置中、溢出時可滑(margin:auto 佔位法) */
+#starband .star:first-child { margin-left: auto; }
+#starband .star:last-child { margin-right: auto; }
+.star { flex: none; scroll-snap-align: start; display: inline-flex; align-items: center; gap: 9px; max-width: 300px; text-align: left;
   background: rgba(244,181,58,.07); border: 1px solid rgba(244,181,58,.32); border-radius: 999px;
   padding: 9px 16px 9px 12px; color: var(--amber-soft); min-height: 44px; }
 .star:hover { border-color: var(--amber); background: rgba(244,181,58,.13); transform: translateY(-1px); }

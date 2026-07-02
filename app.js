@@ -354,15 +354,16 @@ async function openSheet(id) {
   coinBtn.append('投一枚許願幣(免費) ', el('span', 'coin-count', String(w.votes)))
   coinBtn.onclick = () => tossCoinFor(w.id, coinBtn)
   act.appendChild(coinBtn)
-  const echoBtn = el('button', null, '共鳴:我也想要')
+  const echoBtn = el('button', null, '留言:我也想要 / 我有想法')
   echoBtn.onclick = () => sendEcho(w.id)
   act.appendChild(echoBtn)
   sheet.appendChild(act)
 
-  // 共鳴聲(responses)
-  if (w.responses.length) {
-    sheet.appendChild(el('p', 'sheet-label', `池邊的共鳴(${w.responses.length})`))
-    w.responses.forEach((r) => {
+  // 共鳴聲(responses;有 question_id 的已掛在缺口下,這裡只放自由留言)
+  const freeEchoes = w.responses.filter((r) => !r.question_id)
+  if (freeEchoes.length) {
+    sheet.appendChild(el('p', 'sheet-label', `池邊的討論(${freeEchoes.length})`))
+    freeEchoes.forEach((r) => {
       const rr = el('div', 'echo')
       rr.appendChild(el('div', null, r.body))
       rr.appendChild(el('div', 'wisher', r.nickname ? `—— ${r.nickname}` : '—— 有人輕聲說'))
@@ -387,7 +388,21 @@ async function openSheet(id) {
   hv.appendChild(el('p', 'sheet-label', `還缺什麼(${w.needs.length})`))
   if (w.needs.length) w.needs.forEach((n) => {
     const label = { info: '缺資訊', skill: '缺技能', resource: '缺資源' }[n.type] || '缺資訊'
-    hv.appendChild(el('div', 'need' + (n.resolved ? ' resolved' : ''), `[${label}] ${n.body}`))
+    const wrap = el('div', 'need' + (n.resolved ? ' resolved' : ''))
+    wrap.appendChild(el('div', null, `[${label}] ${n.body}`))
+    // 掛在這個缺口下的回答
+    w.responses.filter((r) => r.question_id === n.id).forEach((r) => {
+      const a = el('div', 'need-answer')
+      a.appendChild(el('span', null, r.body))
+      a.appendChild(el('span', 'wisher', r.nickname ? ` —— ${r.nickname}` : ' —— 有人回答'))
+      wrap.appendChild(a)
+    })
+    if (!n.resolved) {
+      const ab = el('button', 'need-reply', '回答這題')
+      ab.onclick = () => answerNeed(w.id, n.id)
+      wrap.appendChild(ab)
+    }
+    hv.appendChild(wrap)
   })
   else hv.appendChild(el('p', 'muted', '目前沒有列出缺口'))
 
@@ -471,6 +486,20 @@ async function tossCoinFor(id, btn) {
     const cached = wishCache.find((x) => x.id === id); if (cached) cached.votes = res.votes
     if (!res.ok) btn.title = '你已經投過這個願望了'
   } catch (e) { countEl.textContent = prev; btn.disabled = false; alert('投幣沒成功,請稍後再試') }
+}
+
+async function answerNeed(wishId, needId) {
+  const body = prompt('你的回答(會掛在這個缺口下,缺口會標為已解):')
+  if (!body || !body.trim()) return
+  const nickname = prompt('留個名字嗎?(可留空)') || undefined
+  try {
+    const token = await getTurnstileToken()
+    await api(`/api/wishes/${wishId}/responses`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ turnstileToken: token, body: body.trim(), nickname, kind: 'answer', questionId: needId }),
+    })
+    await refreshSheet()
+  } catch (e) { alert('送出失敗,請稍後再試') }
 }
 
 async function sendEcho(wishId) {

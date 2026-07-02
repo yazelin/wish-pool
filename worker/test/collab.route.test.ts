@@ -90,6 +90,24 @@ describe('POST /api/answers/:id/vote', () => {
   })
 })
 
+describe('answer a need (討論錨點)', () => {
+  it('response with questionId attaches to the need and resolves it', async () => {
+    mockTurnstileOk()
+    const { createWish, createNeed } = await import('../src/lib/d1')
+    const id = await createWish(env.DB, { title: 'T', status: 'published', open_questions: [] }, 1)
+    const nid = await createNeed(env.DB, id, 'info', '要做網頁還是 App?')
+    const res = await SELF.fetch(`${O}/api/wishes/${id}/responses`, {
+      method: 'POST', headers: H,
+      body: JSON.stringify({ turnstileToken: 't', body: '純網頁就好', nickname: '發呆', kind: 'answer', questionId: nid }),
+    })
+    expect(res.status).toBe(200)
+    const w = await SELF.fetch(`${O}/api/wishes/${id}`).then((r) => r.json<any>())
+    expect(w.needs.find((n: any) => n.id === nid).resolved).toBe(1)
+    const ans = w.responses.find((r: any) => r.question_id === nid)
+    expect(ans.body).toBe('純網頁就好')
+  })
+})
+
 describe('POST updates + needs', () => {
   it('adds an update; GET wish shows it', async () => {
     mockTurnstileOk(); const id = await seed()

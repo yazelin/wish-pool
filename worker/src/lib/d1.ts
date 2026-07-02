@@ -87,7 +87,7 @@ export async function addResponse(
     'INSERT INTO responses (wish_id, question_id, body, nickname, kind, created_at) VALUES (?, ?, ?, ?, ?, ?)',
   ).bind(wishId, r.questionId ?? null, r.body, r.nickname ?? null, r.kind, now).run()
   if (r.questionId) {
-    await db.prepare('UPDATE open_questions SET resolved = 1 WHERE id = ? AND wish_id = ?').bind(r.questionId, wishId).run()
+    await db.prepare('UPDATE needs SET resolved = 1 WHERE id = ? AND wish_id = ?').bind(r.questionId, wishId).run()
   }
   return res.meta.last_row_id as number
 }

@@ -11,6 +11,13 @@ let openSheetId = null      // 目前打開的願望 id
 
 const PHRASE = { published: '池中漂著', adopted: '有人心動了', building: '實現中', done: '成真了' }
 
+// D:記住你參與過的願望(許願/認領/回報/交實作/留言),回站比對動態數,亮「有新進展」
+const WATCH_KEY = 'wishpool_watch'
+function getWatch() { try { return JSON.parse(localStorage.getItem(WATCH_KEY)) || {} } catch (e) { return {} } }
+function setWatch(w) { try { localStorage.setItem(WATCH_KEY, JSON.stringify(w)) } catch (e) { /* ignore */ } }
+function watchWish(id, total) { const w = getWatch(); if (total != null || w[id] == null) w[id] = total ?? 0; setWatch(w) }
+function activityTotal(w) { return (w.answers?.length || 0) + (w.updates?.length || 0) + (w.responses?.length || 0) }
+
 async function api(path, opts) {
   const res = await fetch(API + path, opts)
   if (!res.ok) throw Object.assign(new Error('api'), { status: res.status, body: await res.text().catch(() => '') })
@@ -208,6 +215,30 @@ async function loadPond() {
     note.textContent = '池水暫時看不清,請稍後再試。'
     note.style.display = 'block'
   }
+  checkWatched()
+}
+
+async function checkWatched() {
+  const watch = getWatch()
+  const ids = Object.keys(watch).slice(0, 15)
+  if (!ids.length) return
+  let freshCount = 0
+  await Promise.all(ids.map(async (id) => {
+    try {
+      const w = await api(`/api/wishes/${id}`)
+      if (activityTotal(w) > watch[id]) {
+        freshCount++
+        const card = document.getElementById('wish-' + id)
+        if (card && !card.querySelector('.phrase.fresh')) card.prepend(el('span', 'phrase fresh', '有新進展'))
+      }
+    } catch (e) { if (e.status === 404) { delete watch[id]; setWatch(watch) } }
+  }))
+  document.getElementById('watch-note')?.remove()
+  if (freshCount) {
+    const n = el('p', 'muted', `你參與過的願望有 ${freshCount} 則新動靜 —— 找找亮「有新進展」的燈`)
+    n.id = 'watch-note'; n.style.textAlign = 'center'
+    $('#lanterns').before(n)
+  }
 }
 
 /* ============ 成真星河:三排錯落、可拖曳、慢漂、無限輪迴 ============ */
@@ -307,6 +338,9 @@ async function openSheet(id) {
   let w
   try { w = await api(`/api/wishes/${id}`) } catch (e) { alert('這個願望暫時打不開,請稍後再試'); return }
   openSheetId = id
+  const watchSeen = getWatch()
+  if (watchSeen[id] != null) { watchSeen[id] = activityTotal(w); setWatch(watchSeen) }
+  document.querySelector(`#wish-${id} .phrase.fresh`)?.remove()
   document.body.style.overflow = 'hidden'
   sheet.innerHTML = ''
   sheetBg.classList.add('open')
@@ -522,6 +556,7 @@ async function tossCoinFor(id, btn) {
 }
 
 async function answerNeed(wishId, needId) {
+  watchWish(wishId)
   const body = prompt('你的回答(會掛在這個缺口下,缺口會標為已解):')
   if (!body || !body.trim()) return
   const nickname = prompt('留個名字嗎?(可留空)') || undefined
@@ -536,6 +571,7 @@ async function answerNeed(wishId, needId) {
 }
 
 async function sendEcho(wishId) {
+  watchWish(wishId)
   const body = prompt('想對這個願望說什麼?(例:我也想要,而且希望能…)')
   if (!body || !body.trim()) return
   const nickname = prompt('留個名字嗎?(可留空)') || undefined
@@ -558,6 +594,7 @@ async function postWithTurnstile(path, payload, okMsg) {
   } catch (e) { alert(e.status === 429 ? '今天次數已達上限,明天再來' : '送出失敗,請稍後再試') }
 }
 async function submitAnswer(wishId) {
+  watchWish(wishId)
   const repo = prompt('repo 網址(自己做的,或你知道的現成專案都可以 —— 幫忙指路也算實現):')
   if (!repo || !/^https?:\/\//.test(repo.trim())) { if (repo !== null) alert('請貼有效的 http(s) 網址'); return }
   const note = prompt('一句話說明(指路現成專案請註明「已有現成」,可留空):') || undefined
@@ -573,6 +610,7 @@ async function voteAnswer(answerId, btn) {
   } catch (e) { alert('投幣沒成功,請稍後再試') }
 }
 async function submitUpdate(wishId, isClaim) {
+  watchWish(wishId)
   const kind = isClaim ? 'claim' : (prompt('這是進度還是卡關?輸入 1=進度 2=卡關', '1') === '2' ? 'blocked' : 'progress')
   const body = prompt(isClaim ? '跟大家說一聲你要實現它(例:我來做,預計先做核心功能)' : '進度說明(例:做到 X / 卡在 Y):')
   if (!body || !body.trim()) return
@@ -743,8 +781,10 @@ async function submitWish(form, r, submit) {
     closeModal()
     if (res.status === 'published') {
       pond.coin(innerWidth / 2, innerHeight * .45, () => {})
-      alert('你的願望已經落進池裡了')
-      loadPond()
+      watchWish(res.id, 0)
+      alert('你的願望已經落進池裡了。等等會幫你打開它 —— 想收進展通知,可到它的討論串按 Subscribe(需 GitHub 帳號)')
+      await loadPond()
+      setTimeout(() => openSheet(res.id), 1800)   // 等自動開串一拍,打開時討論區就在
     } else alert('已收到,站方看過後就會出現在池面上,謝謝')
   } catch (e) {
     if (submit) submit.disabled = false

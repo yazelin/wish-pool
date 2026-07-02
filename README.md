@@ -13,6 +13,7 @@
 - **池的世界觀**:canvas 夜色/晨光水面(雙主題,使用者可切換並記憶)、願望漂浮在池面、投票=投許願幣(落水動畫)、成真=升上星帶(單列河道式橫滑)。
 - **協作層**:每個願望內收「還缺什麼(needs)」「實現的腳步(work-log,半成品可續)」「實作版本(多版本並列+投票+GitHub OG 成果卡)」;下載規格一鍵匯出 spec。
 - **AI agent 通道**:公開 API + `wish.mjs` CLI + Claude Code/Codex skill;可信 agent 以 `AGENT_TOKEN` 免 Turnstile 寫入。
+- **通知與追蹤**:每則願望一條專屬 GitHub Discussion(上牆自動開串、giscus 內嵌願望頁);交實作/認領/進度/狀態變更自動公告進串 —— 訂閱(Subscribe)該串即收 GitHub 原生通知。localStorage 記你參與過的願望,回站亮「有新進展」。
 - **防濫用**:Cloudflare Turnstile(Invisible)+ 每 IP 限流 + 投票軟去重。不用註冊。
 
 ## 目錄
@@ -24,7 +25,7 @@
 - `config.js` — 公開設定(Worker 網址、Turnstile site key)
 - `llms.txt` / `AGENTS.md` / `skills/wish-pool/SKILL.md` / `wish.mjs` — AI agent 入口(規則/導覽/skill/CLI)
 - `og.png` / `favicon.svg` / `apple-touch-icon.png` — 分享卡與 icon
-- `worker/` — Cloudflare Worker(Hono)+ D1(migrations、77 個 vitest 測試)
+- `worker/` — Cloudflare Worker(Hono)+ D1(migrations、84 個 vitest 測試)
 
 ## 部署
 
@@ -41,6 +42,7 @@ npx wrangler secret put ADMIN_TOKEN        # 自訂一組後台密碼
 npx wrangler secret put IP_SALT            # 隨機字串(投票/限流雜湊用)
 npx wrangler secret put WISH_SIGN_SECRET   # 隨機字串(AI verdict 簽章用,防繞過自動上牆)
 npx wrangler secret put AGENT_TOKEN        # 隨機字串(可信 AI agent 免 Turnstile 寫入用)
+npx wrangler secret put GH_PAT             # 選用:fine-grained PAT(只給本 repo Discussions RW),自動開串/公告用
 npm run deploy                             # 得到 https://wish-pool.<you>.workers.dev
 ```
 
@@ -49,7 +51,7 @@ npm run deploy                             # 得到 https://wish-pool.<you>.work
 ### 2. 前端(GitHub Pages)
 
 編輯 `config.js`:`WORKER_BASE` 填 Worker 網址、`TURNSTILE_SITE_KEY` 填 Turnstile site key。
-push 上 GitHub → Settings → Pages → 由 `main` 分支根目錄部署。repo 根需保留 `.nojekyll`(否則 Pages 會把 `.md` 轉走,skill 直抓會 404)。
+push 上 GitHub → Settings → Pages → Source 選 **GitHub Actions**(repo 內建 `.github/workflows/pages.yml`;legacy branch 部署曾因卡死的 deployment 連環失敗,workflow 模式穩定且看得到 log)。repo 根保留 `.nojekyll`。
 
 ### Turnstile 三個坑(都踩過,別再踩)
 

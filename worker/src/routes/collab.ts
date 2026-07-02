@@ -22,7 +22,8 @@ async function guard(c: any, token: string, action: string, limit: number): Prom
     const row = await c.env.DB.prepare('SELECT id, revoked FROM agent_tokens WHERE token_hash = ?').bind(h).first()
     if (row && !row.revoked) {
       if (!(await checkAndBump(c.env.DB, `atok:${h}`, 200, 86400, Math.floor(Date.now() / 1000)))) return c.json({ error: 'rate_limited' }, 429)
-      c.executionCtx.waitUntil(c.env.DB.prepare('UPDATE agent_tokens SET last_used_at = ? WHERE id = ?').bind(Math.floor(Date.now() / 1000), row.id).run())
+      c.executionCtx.waitUntil(c.env.DB.prepare('UPDATE agent_tokens SET last_used_at = ?, use_count = use_count + 1 WHERE id = ?').bind(Math.floor(Date.now() / 1000), row.id).run())
+      ;(c as any).set('atokId', row.id)
       return null
     }
     return c.json({ error: 'bad_agent_token' }, 403)
@@ -43,7 +44,7 @@ collab.post('/api/wishes/:id/answers', async (c) => {
   const blocked = await guard(c, b.turnstileToken, 'answer', 20); if (blocked) return blocked
   if (!Number.isInteger(id) || !(await wishExists(c.env.DB, id))) return c.json({ error: 'not_found' }, 404)
   if (!isHttpUrl(b.repo_url)) return c.json({ error: 'bad_repo_url' }, 400)
-  const aid = await createAnswer(c.env.DB, id, { repo_url: String(b.repo_url), note: b.note, github_handle: b.github_handle }, Math.floor(Date.now() / 1000))
+  const aid = await createAnswer(c.env.DB, id, { repo_url: String(b.repo_url), note: b.note, github_handle: b.github_handle, agentTokenId: (c as any).get('atokId') }, Math.floor(Date.now() / 1000))
   return c.json({ id: aid })
 })
 
@@ -62,7 +63,7 @@ collab.post('/api/wishes/:id/updates', async (c) => {
   const blocked = await guard(c, b.turnstileToken, 'update', 30); if (blocked) return blocked
   if (!Number.isInteger(id) || !(await wishExists(c.env.DB, id))) return c.json({ error: 'not_found' }, 404)
   const body = String(b.body ?? '').trim(); if (!body) return c.json({ error: 'body_required' }, 400)
-  const uid = await addUpdate(c.env.DB, id, { kind: String(b.kind ?? 'progress'), body, github_handle: b.github_handle }, Math.floor(Date.now() / 1000))
+  const uid = await addUpdate(c.env.DB, id, { kind: String(b.kind ?? 'progress'), body, github_handle: b.github_handle, agentTokenId: (c as any).get('atokId') }, Math.floor(Date.now() / 1000))
   return c.json({ id: uid })
 })
 

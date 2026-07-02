@@ -47,7 +47,11 @@ admin.post('/api/admin/needs/:id/resolve', async (c) => {
 })
 
 admin.get('/api/admin/agent-tokens', async (c) => {
-  const { results } = await c.env.DB.prepare('SELECT id, label, github_handle, created_at, last_used_at, revoked FROM agent_tokens ORDER BY id DESC').all()
+  const { results } = await c.env.DB.prepare(`SELECT t.id, t.label, t.github_handle, t.created_at, t.last_used_at, t.revoked, t.use_count,
+      substr(t.created_ip_hash, 1, 8) AS ip8,
+      (SELECT COUNT(*) FROM answers a WHERE a.agent_token_id = t.id) AS answers_count,
+      (SELECT COUNT(*) FROM updates u WHERE u.agent_token_id = t.id) AS updates_count
+    FROM agent_tokens t ORDER BY t.id DESC`).all()
   return c.json({ tokens: results })
 })
 

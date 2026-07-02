@@ -63,4 +63,24 @@ describe('agent token self-service', () => {
     const rv = await SELF.fetch(`${O}/api/admin/agent-tokens/${list.tokens[0].id}/revoke`, { method: 'POST', headers: AUTH })
     expect(rv.status).toBe(200)
   })
+
+  it('audit trail: mint records ip hash; writes attributed + use_count counted', async () => {
+    mockTurnstileOk()
+    const id = await seedWish()
+    const { token } = await SELF.fetch(`${O}/api/agent-tokens`, { method: 'POST', headers: H,
+      body: JSON.stringify({ turnstileToken: 't', label: 'audit-bot' }) }).then((r) => r.json<any>())
+    await SELF.fetch(`${O}/api/wishes/${id}/updates`, {
+      method: 'POST', headers: { ...H, Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ kind: 'claim', body: 'x' }) })
+    await SELF.fetch(`${O}/api/wishes/${id}/answers`, {
+      method: 'POST', headers: { ...H, Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ repo_url: 'https://github.com/a/b' }) })
+    const AUTH = { ...H, Authorization: 'Bearer test-admin-token' }
+    const { tokens } = await SELF.fetch(`${O}/api/admin/agent-tokens`, { headers: AUTH }).then((r) => r.json<any>())
+    const t = tokens.find((x: any) => x.label === 'audit-bot')
+    expect(t.ip8).toBeTruthy()
+    expect(t.use_count).toBeGreaterThanOrEqual(2)
+    expect(t.updates_count).toBe(1)
+    expect(t.answers_count).toBe(1)
+  })
 })

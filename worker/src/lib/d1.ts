@@ -126,11 +126,11 @@ export async function resolveNeed(db: D1Database, id: number): Promise<void> {
 
 const UPDATE_KINDS = ['claim', 'progress', 'blocked']
 export async function addUpdate(
-  db: D1Database, wishId: number, u: { kind: string; body: string; github_handle?: string }, now: number,
+  db: D1Database, wishId: number, u: { kind: string; body: string; github_handle?: string; agentTokenId?: number }, now: number,
 ): Promise<number> {
   const kind = UPDATE_KINDS.includes(u.kind) ? u.kind : 'progress'
-  const res = await db.prepare('INSERT INTO updates (wish_id, kind, body, github_handle, created_at) VALUES (?, ?, ?, ?, ?)')
-    .bind(wishId, kind, u.body, u.github_handle ?? null, now).run()
+  const res = await db.prepare('INSERT INTO updates (wish_id, kind, body, github_handle, created_at, agent_token_id) VALUES (?, ?, ?, ?, ?, ?)')
+    .bind(wishId, kind, u.body, u.github_handle ?? null, now, u.agentTokenId ?? null).run()
   return res.meta.last_row_id as number
 }
 export async function listUpdates(db: D1Database, wishId: number): Promise<Update[]> {
@@ -139,10 +139,10 @@ export async function listUpdates(db: D1Database, wishId: number): Promise<Updat
 }
 
 export async function createAnswer(
-  db: D1Database, wishId: number, a: { repo_url: string; note?: string; github_handle?: string }, now: number,
+  db: D1Database, wishId: number, a: { repo_url: string; note?: string; github_handle?: string; agentTokenId?: number }, now: number,
 ): Promise<number> {
-  const res = await db.prepare('INSERT INTO answers (wish_id, repo_url, note, github_handle, votes, status, created_at) VALUES (?, ?, ?, ?, 0, ?, ?)')
-    .bind(wishId, a.repo_url, a.note ?? null, a.github_handle ?? null, 'visible', now).run()
+  const res = await db.prepare('INSERT INTO answers (wish_id, repo_url, note, github_handle, votes, status, created_at, agent_token_id) VALUES (?, ?, ?, ?, 0, ?, ?, ?)')
+    .bind(wishId, a.repo_url, a.note ?? null, a.github_handle ?? null, 'visible', now, a.agentTokenId ?? null).run()
   return res.meta.last_row_id as number
 }
 export async function listAnswers(db: D1Database, wishId: number, opts: { includeHidden?: boolean } = {}): Promise<Answer[]> {

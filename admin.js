@@ -18,7 +18,11 @@ tokBtn.onclick = async () => {
     tokens.forEach((t) => {
       const row = el('div', 'card-foot')
       const when = new Date(t.created_at * 1000).toLocaleDateString('zh-TW')
-      row.appendChild(el('span', null, `#${t.id} ${t.label || '(未命名)'} ${t.github_handle ? '@' + t.github_handle : ''} · ${when}` + (t.revoked ? ' [已撤銷]' : '')))
+      const used = t.last_used_at ? new Date(t.last_used_at * 1000).toLocaleString('zh-TW', { hour12: false }) : '未使用'
+      row.appendChild(el('span', null,
+        `#${t.id} ${t.label || '(未命名)'} ${t.github_handle ? '@' + t.github_handle : ''} · 領於 ${when}` +
+        ` · 用 ${t.use_count} 次 · 答案 ${t.answers_count} · 進度 ${t.updates_count} · 最後 ${used}` +
+        (t.ip8 ? ` · ip:${t.ip8}` : '') + (t.revoked ? ' [已撤銷]' : '')))
       if (!t.revoked) {
         const rv = el('button', null, '撤銷')
         rv.onclick = async () => { await adminApi(`/api/admin/agent-tokens/${t.id}/revoke`, { method: 'POST' }); box.innerHTML = ''; tokBtn.click() }

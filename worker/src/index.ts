@@ -5,6 +5,7 @@ import { wishes } from './routes/wishes'
 import { refineRoute } from './routes/refine'
 import { admin } from './routes/admin'
 import { collab } from './routes/collab'
+import { og } from './routes/og'
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -25,5 +26,6 @@ app.route('/', wishes)
 app.route('/', refineRoute)
 app.route('/', admin)
 app.route('/', collab)
+app.route('/', og)
 
 export default app

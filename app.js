@@ -20,7 +20,7 @@ async function api(path, opts) {
 // 一次性拿 Turnstile token(隱形 widget 類型在 Cloudflare 後台設)
 // 注意:容器不能 display:none(真 widget 在隱藏容器內不執行挑戰)→ 用螢幕外定位;
 // 也不要呼叫 execute()(預設 execution=render,render 即自動跑)。
-function getTurnstileToken() {
+function mintTurnstileToken() {
   return new Promise((resolve, reject) => {
     if (!window.turnstile) return reject(new Error('turnstile not loaded'))
     const holder = el('div')
@@ -43,6 +43,35 @@ function getTurnstileToken() {
     })
   })
 }
+
+// token 池:頁面載入先預熱一枚(token 單次使用、約 5 分鐘效期),動作時秒用、背景補貨。
+// 投幣慢的主因就是「動作當下才跑隱形挑戰(1-3 秒)」;預熱後只剩 API 延遲。
+let tsCache = null      // { t, at }
+let tsFilling = null
+function fillTurnstile() {
+  if (tsFilling) return tsFilling
+  tsFilling = mintTurnstileToken().then(
+    (t) => { tsCache = { t, at: Date.now() }; tsFilling = null; return t },
+    (e) => { tsFilling = null; throw e },
+  )
+  return tsFilling
+}
+async function getTurnstileToken() {
+  if (tsCache && Date.now() - tsCache.at < 240000) {
+    const t = tsCache.t
+    tsCache = null
+    fillTurnstile().catch(() => {})   // 背景補下一枚
+    return t
+  }
+  const t = await fillTurnstile()
+  if (tsCache && tsCache.t === t) tsCache = null   // 這枚被本次消費,清掉避免重複使用
+  fillTurnstile().catch(() => {})
+  return t
+}
+;(function warmTurnstile() {
+  if (window.turnstile) fillTurnstile().catch(() => {})
+  else setTimeout(warmTurnstile, 400)
+})()
 
 /* ============ 水面(canvas):微光粒 + 漣漪環 + 許願幣 ============ */
 const isDay = () => document.documentElement.classList.contains('theme-day')
@@ -118,7 +147,8 @@ function repoPreview(repoUrl) {
     if (u.hostname !== 'github.com') return null
     const seg = u.pathname.split('/').filter(Boolean)
     if (seg.length < 2) return null
-    return `https://opengraph.githubassets.com/1/${encodeURIComponent(seg[0])}/${encodeURIComponent(seg[1])}`
+    // 經 worker proxy 讀 og:image meta(自訂 Social preview 才會生效;直接打 githubassets 只會拿到自動卡)
+    return `${API}/api/og/${encodeURIComponent(seg[0])}/${encodeURIComponent(seg[1])}`
   } catch (e) { return null }
 }
 
@@ -427,17 +457,20 @@ async function tossCoinFor(id, btn) {
   btn.disabled = true
   const r = btn.getBoundingClientRect()
   pond.coin(r.left + r.width / 2, Math.min(innerHeight - 60, r.top - 8), () => {})
+  const countEl = btn.querySelector('.coin-count')
+  const prev = Number(countEl.textContent)
+  countEl.textContent = prev + 1   // 樂觀更新,伺服器回來校正
   try {
     const token = await getTurnstileToken()
     const res = await api(`/api/wishes/${id}/vote`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ turnstileToken: token }),
     })
-    btn.querySelector('.coin-count').textContent = res.votes
+    countEl.textContent = res.votes
     if (res.ok) btn.disabled = false
     const cached = wishCache.find((x) => x.id === id); if (cached) cached.votes = res.votes
     if (!res.ok) btn.title = '你已經投過這個願望了'
-  } catch (e) { btn.disabled = false; alert('投幣沒成功,請稍後再試') }
+  } catch (e) { countEl.textContent = prev; btn.disabled = false; alert('投幣沒成功,請稍後再試') }
 }
 
 async function sendEcho(wishId) {

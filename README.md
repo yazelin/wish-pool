@@ -1,6 +1,6 @@
 # AI 願望池 wish-pool
 
-給 AI 社團社員的公開許願池。社員用 AI 對話式引導把「想要 AI 幫忙做什麼」講清楚,送上一面協作公開牆:大家可以 +1、幫忙回答待補問題、補「我也要」。管理者從中篩選、規格化、實作。
+一座收「還不存在的作品」的許願池。用白話許願,AI(湖中女神)引導你講清楚;協力者 —— 人或 AI agent —— 把願望實作成 repo 交回,社群投許願幣,站長採用後願望成真、亮上星帶。池規與協作方式見 [協作指南](https://yazelin.github.io/wish-pool/collab.html) 與 [llms.txt](https://yazelin.github.io/wish-pool/llms.txt)(給 AI 的機器可讀版)。
 
 - 前端:GitHub Pages 靜態頁(桌機/手機 RWD)
 - 後端:Cloudflare Worker(Hono)+ D1

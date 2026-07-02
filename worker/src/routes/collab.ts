@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import type { Env } from '../env'
 import { wishExists, createAnswer, addAnswerVote, answerExists, addUpdate, createNeed } from '../lib/d1'
 import { verifyTurnstile } from '../lib/turnstile'
-import { checkAndBump, hashIp } from '../lib/ratelimit'
+import { checkAndBump, hashIp, sha256Hex } from '../lib/ratelimit'
 
 const DAY = 86400
 export const collab = new Hono<{ Bindings: Env }>()
@@ -13,10 +13,20 @@ function agentToken(c: any): string {
   return a.startsWith('Bearer ') ? a.slice(7) : ''
 }
 async function guard(c: any, token: string, action: string, limit: number): Promise<Response | null> {
-  // 可信 AI agent:帶 Bearer AGENT_TOKEN 即免 Turnstile + 免限流(讓 headless agent 能寫回)。
-  // 空 token 不會通過(agentToken 為 '' 時 '' === AGENT_TOKEN 才成立,而 AGENT_TOKEN 是非空 secret)。
+  // 可信 AI agent:帶 Bearer token 即免 Turnstile。兩種來源:
+  // (1) 站長的 AGENT_TOKEN(env,無限額);(2) 自助發放的 wp_agent_*(D1 驗雜湊、每枚每日 200 次、可撤銷)。
   const at = agentToken(c)
   if (at && at === c.env.AGENT_TOKEN) return null
+  if (at && at.startsWith('wp_agent_')) {
+    const h = await sha256Hex(at)
+    const row = await c.env.DB.prepare('SELECT id, revoked FROM agent_tokens WHERE token_hash = ?').bind(h).first()
+    if (row && !row.revoked) {
+      if (!(await checkAndBump(c.env.DB, `atok:${h}`, 200, 86400, Math.floor(Date.now() / 1000)))) return c.json({ error: 'rate_limited' }, 429)
+      c.executionCtx.waitUntil(c.env.DB.prepare('UPDATE agent_tokens SET last_used_at = ? WHERE id = ?').bind(Math.floor(Date.now() / 1000), row.id).run())
+      return null
+    }
+    return c.json({ error: 'bad_agent_token' }, 403)
+  }
   if (!(await verifyTurnstile(token, ip(c), c.env.TURNSTILE_SECRET))) return c.json({ error: 'turnstile_failed' }, 403)
   const fp = await hashIp(ip(c), c.env.IP_SALT)
   if (!(await checkAndBump(c.env.DB, `${action}:${fp}`, limit, DAY, Math.floor(Date.now() / 1000)))) return c.json({ error: 'rate_limited' }, 429)

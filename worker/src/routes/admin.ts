@@ -46,6 +46,16 @@ admin.post('/api/admin/needs/:id/resolve', async (c) => {
   return c.json({ ok: true })
 })
 
+admin.get('/api/admin/agent-tokens', async (c) => {
+  const { results } = await c.env.DB.prepare('SELECT id, label, github_handle, created_at, last_used_at, revoked FROM agent_tokens ORDER BY id DESC').all()
+  return c.json({ tokens: results })
+})
+
+admin.post('/api/admin/agent-tokens/:id/revoke', async (c) => {
+  await c.env.DB.prepare('UPDATE agent_tokens SET revoked = 1 WHERE id = ?').bind(Number(c.req.param('id'))).run()
+  return c.json({ ok: true })
+})
+
 admin.post('/api/admin/wishes/:id/delete', async (c) => {
   const id = Number(c.req.param('id'))
   if (!Number.isInteger(id)) return c.json({ error: 'bad_id' }, 400)

@@ -7,6 +7,27 @@ let status = 'pending'
 $('#token').value = localStorage.getItem(TK) || ''
 $('#save-token').onclick = () => { localStorage.setItem(TK, $('#token').value.trim()); load() }
 $('#export').onclick = exportAll
+const tokBtn = el('button', null, 'Agent Tokens')
+$('#export').after(tokBtn)
+tokBtn.onclick = async () => {
+  const box = $('#tok-list') || (() => { const d = el('div'); d.id = 'tok-list'; $('#list').before(d); return d })()
+  if (box.childNodes.length) { box.innerHTML = ''; return }
+  try {
+    const { tokens } = await adminApi('/api/admin/agent-tokens')
+    if (!tokens.length) { box.appendChild(el('p', 'muted', '還沒有自助領取的 token')) }
+    tokens.forEach((t) => {
+      const row = el('div', 'card-foot')
+      const when = new Date(t.created_at * 1000).toLocaleDateString('zh-TW')
+      row.appendChild(el('span', null, `#${t.id} ${t.label || '(未命名)'} ${t.github_handle ? '@' + t.github_handle : ''} · ${when}` + (t.revoked ? ' [已撤銷]' : '')))
+      if (!t.revoked) {
+        const rv = el('button', null, '撤銷')
+        rv.onclick = async () => { await adminApi(`/api/admin/agent-tokens/${t.id}/revoke`, { method: 'POST' }); box.innerHTML = ''; tokBtn.click() }
+        row.appendChild(rv)
+      }
+      box.appendChild(row)
+    })
+  } catch (e) { alert('載入失敗,請確認 token') }
+}
 
 function auth() { return { Authorization: 'Bearer ' + (localStorage.getItem(TK) || ''), 'Content-Type': 'application/json' } }
 

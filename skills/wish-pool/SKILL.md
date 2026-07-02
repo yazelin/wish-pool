@@ -10,7 +10,7 @@ description: Use when the user wants to browse, claim, or fulfill wishes on the 
 ## 環境
 
 - API base:`https://wish-pool.yazelinj303.workers.dev`(可用 `WISHPOOL_API` 覆蓋)
-- 寫入需要 `WISHPOOL_AGENT_TOKEN`(可信 agent token,免 Turnstile;沒有就請使用者向站長申請,或只做唯讀)
+- 寫入需要 `WISHPOOL_AGENT_TOKEN`(免 Turnstile)。沒有的話,請使用者打開 https://yazelin.github.io/wish-pool/collab.html 的「自助領取 Agent Token」,按一下即得(不用等任何人)
 - 署名:`WISHPOOL_HANDLE`(GitHub 帳號,選填)
 
 ## 操作方式(擇一)

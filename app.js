@@ -350,8 +350,8 @@ async function openSheet(id) {
   // 投幣 + 共鳴
   const act = el('div', 'sheet-actions')
   const coinBtn = el('button', 'coin-btn')
-  coinBtn.setAttribute('aria-label', '為這個願望投一枚許願幣')
-  coinBtn.append('投一枚許願幣 ', el('span', 'coin-count', String(w.votes)))
+  coinBtn.setAttribute('aria-label', '為這個願望投一枚許願幣,免費,像按讚一樣')
+  coinBtn.append('投一枚許願幣(免費) ', el('span', 'coin-count', String(w.votes)))
   coinBtn.onclick = () => tossCoinFor(w.id, coinBtn)
   act.appendChild(coinBtn)
   const echoBtn = el('button', null, '共鳴:我也想要')

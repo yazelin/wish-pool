@@ -299,3 +299,5 @@ html.theme-day body { background:
 .theme-day .theme-corner { background: rgba(255,255,255,.8); border-color: #cfe6dc; color: #5d7d75; }
 .need-answer { margin: 6px 0 2px 14px; padding-left: 10px; border-left: 2px solid rgba(74,222,128,.4); font-size: .9rem; color: var(--text); }
 .need-reply { margin-top: 6px; min-height: 34px; padding: 6px 12px; font-size: .82rem; }
+.giscus-box { margin: 8px 0 4px; min-height: 120px; }
+.giscus-box .giscus { width: 100%; }

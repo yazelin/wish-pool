@@ -377,6 +377,33 @@ async function openSheet(id) {
     })
   }
 
+  // GitHub 討論串內嵌(giscus,綁定該願望專屬 discussion number;沿用 catime 模式)
+  if (w.discussion_url) {
+    const dnum = Number((w.discussion_url.match(/\/discussions\/(\d+)/) || [])[1])
+    if (dnum) {
+      sheet.appendChild(el('p', 'sheet-label', '這個願望的討論串'))
+      const gbox = el('div', 'giscus-box')
+      const gs = document.createElement('script')
+      gs.src = 'https://giscus.app/client.js'
+      gs.setAttribute('data-repo', 'yazelin/wish-pool')
+      gs.setAttribute('data-repo-id', 'R_kgDOTKaXyw')
+      gs.setAttribute('data-category', 'Ideas')
+      gs.setAttribute('data-category-id', 'DIC_kwDOTKaXy84DAW1T')
+      gs.setAttribute('data-mapping', 'number')
+      gs.setAttribute('data-term', String(dnum))
+      gs.setAttribute('data-strict', '0')
+      gs.setAttribute('data-reactions-enabled', '1')
+      gs.setAttribute('data-emit-metadata', '0')
+      gs.setAttribute('data-input-position', 'top')
+      gs.setAttribute('data-theme', isDay() ? 'light' : 'dark_dimmed')
+      gs.setAttribute('data-lang', 'zh-TW')
+      gs.setAttribute('data-loading', 'lazy')
+      gs.crossOrigin = 'anonymous'; gs.async = true
+      gbox.appendChild(gs)
+      sheet.appendChild(gbox)
+    }
+  }
+
   // 「我來幫忙實現」折疊層(tracker 面只住在這裡)
   const helper = document.createElement('details')
   helper.className = 'helper'

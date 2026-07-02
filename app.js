@@ -17,20 +17,30 @@ async function api(path, opts) {
   return res.json()
 }
 
-// 一次性拿 Turnstile token(隱形 widget 類型在 Cloudflare 後台設,不是 size 參數)
+// 一次性拿 Turnstile token(隱形 widget 類型在 Cloudflare 後台設)
+// 注意:容器不能 display:none(真 widget 在隱藏容器內不執行挑戰)→ 用螢幕外定位;
+// 也不要呼叫 execute()(預設 execution=render,render 即自動跑)。
 function getTurnstileToken() {
   return new Promise((resolve, reject) => {
     if (!window.turnstile) return reject(new Error('turnstile not loaded'))
     const holder = el('div')
-    holder.style.display = 'none'
+    holder.style.cssText = 'position:fixed;left:-9999px;bottom:0;width:300px;height:65px;'
     document.body.appendChild(holder)
-    const cleanup = (id) => { try { window.turnstile.remove(id) } catch (e) { /* ignore */ } holder.remove() }
-    const id = window.turnstile.render(holder, {
+    let wid = null, settled = false
+    const finish = (ok, val) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      try { if (wid !== null) window.turnstile.remove(wid) } catch (e) { /* ignore */ }
+      holder.remove()
+      ok ? resolve(val) : reject(val)
+    }
+    const timer = setTimeout(() => finish(false, new Error('turnstile timeout')), 20000)
+    wid = window.turnstile.render(holder, {
       sitekey: CFG.TURNSTILE_SITE_KEY,
-      callback: (t) => { resolve(t); cleanup(id) },
-      'error-callback': () => { reject(new Error('turnstile error')); cleanup(id) },
+      callback: (t) => finish(true, t),
+      'error-callback': () => finish(false, new Error('turnstile error')),
     })
-    window.turnstile.execute?.(holder)
   })
 }
 

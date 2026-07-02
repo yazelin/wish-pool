@@ -34,3 +34,16 @@ async function load() {
   }
 }
 load()
+
+/* 主題切換(與池面共用 localStorage 記憶) */
+const themeBtn = document.querySelector('#theme-toggle')
+if (themeBtn) {
+  const isDay = () => document.documentElement.classList.contains('theme-day')
+  const sync = () => { themeBtn.textContent = isDay() ? '夜晚' : '晨光' }
+  themeBtn.onclick = () => {
+    document.documentElement.classList.toggle('theme-day')
+    try { localStorage.setItem('wishpool_theme', isDay() ? 'day' : 'night') } catch (e) { /* ignore */ }
+    sync()
+  }
+  sync()
+}

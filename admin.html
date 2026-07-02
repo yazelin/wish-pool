@@ -8,6 +8,13 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <script>
+    (function () {
+      var t = 'day'
+      try { t = localStorage.getItem('wishpool_theme') || 'day' } catch (e) {}
+      if (t === 'day') document.documentElement.classList.add('theme-day')
+    })()
+  </script>
 </head>
 <body>
   <div class="wrap">
@@ -17,6 +24,7 @@
       <button id="save-token" class="primary">記住</button>
       <span class="spacer"></span>
       <button id="export">匯出全部 JSON</button>
+      <button class="sort" id="theme-toggle" aria-label="切換晨光或夜晚">夜晚</button>
     </div>
     <div class="bar">
       <button class="sort active" data-status="pending">待審</button>

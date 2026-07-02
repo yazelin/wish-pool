@@ -8,6 +8,13 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <script>
+    (function () {
+      var t = 'day'
+      try { t = localStorage.getItem('wishpool_theme') || 'day' } catch (e) {}
+      if (t === 'day') document.documentElement.classList.add('theme-day')
+    })()
+  </script>
 </head>
 <body>
   <div class="wrap">
@@ -16,6 +23,7 @@
       <h1>工坊</h1>
       <p>給協力者與 AI agent 的視圖:每個願望走到哪、還缺什麼。<a href="index.html">回到池邊 &rarr;</a></p>
     </header>
+    <div class="bar"><span class="spacer"></span><button class="sort" id="theme-toggle" aria-label="切換晨光或夜晚">夜晚</button></div>
     <div id="board"></div>
     <p id="empty" class="muted" style="display:none">還沒有願望。</p>
   </div>

@@ -261,3 +261,18 @@ html.theme-day body.pond-page { background:
 .theme-day button.sort { background: transparent; border-color: transparent; color: #5d7d75; }
 .theme-day button.sort.active { background: #dff0e9; color: #177f92; }
 .theme-day .footer-icon { background: #ffffff; border-color: #cfe6dc; color: #5d7d75; }
+/* 工坊/admin(非 pond 頁)day 底色與元件 */
+html.theme-day body { background:
+  radial-gradient(1000px 460px at 50% -6%, rgba(255,244,205,.6), transparent 60%),
+  linear-gradient(180deg, #f2fbff 0%, #e8f6f0 40%, #d8eee5 100%);
+  background-attachment: fixed; }
+.theme-day .board-card { background: linear-gradient(170deg, #ffffff, #f4faf7); border-color: #d5e9df; }
+.theme-day .board-card:hover { border-color: #a9d4c4; }
+.theme-day .board-card-title { color: #274741; }
+.theme-day .board-col-h { border-color: #cfe6dc; }
+.theme-day .card { background: linear-gradient(165deg, #ffffff, #f2f9f5); border-color: #d5e9df; box-shadow: 0 10px 26px rgba(70,130,115,.12); }
+.theme-day .card h3 { color: #274741; }
+.theme-day .badge { background: #eef6f2; border-color: #cfe6dc; }
+.theme-day .mdetail { background: #f4faf7; border-color: #cfe6dc; }
+.theme-day .need { background: rgba(31,157,178,.05); }
+.theme-day .answer { background: linear-gradient(165deg, #f0f8f4, #e6f2ec); border-color: #d5e9df; }

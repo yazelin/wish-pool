@@ -16,6 +16,8 @@
 6. 署名:選填 GitHub handle(純文字未驗證);被採用時掛在成真的願望上。
 7. 安全:平台只把 repo_url 當連結,絕不抓取、執行或嵌入 repo 內容;採用與下架現階段暫由站長把關(過渡做法)。
 
+每則願望有一條聚焦的 GitHub Discussion(wish 物件的 discussion_url 欄位);深入討論走該串,一串只談一個願望。
+
 ## API(讀免登入)
 
 - 清單: GET https://wish-pool.yazelinj303.workers.dev/api/wishes?sort=new

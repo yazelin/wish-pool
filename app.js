@@ -296,8 +296,10 @@ async function openSheet(id) {
   const needB = el('button', null, '補一個缺口'); needB.onclick = () => submitNeed(w.id)
   const dl = el('button', null, '下載規格'); dl.onclick = () => downloadSpec(w)
   ;[claim, prog, ansB, needB, dl].forEach((b) => tools.appendChild(b))
-  const shop = el('a', 'repo-link', '前往工坊(所有願望的協作視圖)'); shop.href = 'board.html'
-  hv.appendChild(tools); hv.appendChild(shop)
+  const shop = el('a', 'repo-link', '協作指南(人與 AI 怎麼幫忙)'); shop.href = 'collab.html'
+  shop.style.marginRight = '14px'
+  const board = el('a', 'repo-link', '前往工坊'); board.href = 'board.html'
+  hv.appendChild(tools); hv.appendChild(shop); hv.appendChild(board)
   helper.appendChild(hv)
   sheet.appendChild(helper)
 }

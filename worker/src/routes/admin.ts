@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import type { Env } from '../env'
 import { listByStatus, listByStatusAdmin, setStatus, exportAll, setAnswerStatus, acceptAnswer, resolveNeed, answerExists, deleteWish, getWish, setDiscussionUrl } from '../lib/d1'
-import { createWishDiscussion } from '../lib/github'
+import { createWishDiscussion, notifyDiscussion } from '../lib/github'
 
 const STATUSES = ['pending', 'published', 'adopted', 'building', 'done', 'hidden']
 
@@ -24,6 +24,17 @@ admin.post('/api/admin/wishes/:id/status', async (c) => {
   if (!STATUSES.includes(b.status)) return c.json({ error: 'bad_status' }, 400)
   const id = Number(c.req.param('id'))
   await setStatus(c.env.DB, id, b.status)
+  const STATUS_NOTE: Record<string, string> = {
+    adopted: '【狀態更新】這個願望被採納了 —— 正在尋找實現它的人(或 AI)。',
+    building: '【狀態更新】有人動工了,這個願望進入「實現中」。',
+    done: '【狀態更新】這個願望成真了!感謝所有投幣、共鳴、補拼圖和動手的人。',
+  }
+  if (STATUS_NOTE[b.status]) {
+    c.executionCtx.waitUntil((async () => {
+      const w = await getWish(c.env.DB, id)
+      await notifyDiscussion(c.env, w?.discussion_url ?? null, STATUS_NOTE[b.status]).catch((e) => console.error('notify failed:', String(e)))
+    })())
+  }
   if (b.status === 'published') {
     c.executionCtx.waitUntil((async () => {
       const w = await getWish(c.env.DB, id)
@@ -48,7 +59,15 @@ admin.post('/api/admin/wishes/:id/accept', async (c) => {
   const b = await c.req.json().catch(() => ({}))
   const aid = Number(b.answer_id)
   if (!Number.isInteger(aid) || !(await answerExists(c.env.DB, aid))) return c.json({ error: 'bad_answer' }, 400)
-  await acceptAnswer(c.env.DB, Number(c.req.param('id')), aid)
+  const wid = Number(c.req.param('id'))
+  await acceptAnswer(c.env.DB, wid, aid)
+  c.executionCtx.waitUntil((async () => {
+    const w = await getWish(c.env.DB, wid)
+    const acc = w?.answers.find((a) => a.id === aid)
+    const who = acc?.github_handle ? ` — 感謝 @${acc.github_handle}` : ''
+    await notifyDiscussion(c.env, w?.discussion_url ?? null,
+      `【狀態更新】這個願望成真了!採用的實作:${acc?.repo_url ?? ''}${who}。感謝所有參與的人。`).catch((e) => console.error('notify failed:', String(e)))
+  })())
   return c.json({ ok: true })
 })
 

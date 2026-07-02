@@ -131,3 +131,91 @@ label.muted { display: block; font-size: .82rem; margin-bottom: 5px; }
 
 #empty { text-align: center; padding: 30px 0; }
 @media (max-width: 560px) { .wrap { padding: 0 15px 34px; } .card { padding: 18px; } header.hero { padding: 46px 0 18px; } }
+
+/* ============ 池的世界觀(index) ============ */
+#pond { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+.pond-page .wrap { position: relative; z-index: 1; }
+.pond-page { background:
+    radial-gradient(1200px 640px at 50% -10%, rgba(244,181,58,.13), transparent 62%),
+    radial-gradient(900px 560px at 85% 6%, rgba(34,211,238,.07), transparent 55%),
+    radial-gradient(1400px 900px at 50% 115%, rgba(14,60,72,.35), transparent 60%),
+    linear-gradient(180deg, #14110b, #0e0c08 45%, #0a0d0e);
+  background-attachment: fixed; }
+
+/* 星帶:成真的願望 */
+.band-label { text-align: center; color: var(--dim); font-size: .8rem; letter-spacing: .22em; margin: 6px 0 10px; }
+#starband { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; padding: 2px 0 6px; }
+.star { display: inline-flex; align-items: center; gap: 9px; max-width: 300px; text-align: left;
+  background: rgba(244,181,58,.07); border: 1px solid rgba(244,181,58,.32); border-radius: 999px;
+  padding: 9px 16px 9px 12px; color: var(--amber-soft); min-height: 44px; }
+.star:hover { border-color: var(--amber); background: rgba(244,181,58,.13); transform: translateY(-1px); }
+.star-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--amber);
+  box-shadow: 0 0 10px 3px rgba(244,181,58,.55); animation: starPulse 2.6s ease-in-out infinite; }
+.star-title { font-family: var(--serif); font-weight: 600; font-size: .88rem; line-height: 1.3;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@keyframes starPulse { 0%,100% { box-shadow: 0 0 8px 2px rgba(244,181,58,.45); } 50% { box-shadow: 0 0 14px 5px rgba(244,181,58,.75); } }
+
+/* 願望燈 */
+#lanterns { display: flex; flex-direction: column; gap: 20px; padding-bottom: 8px; }
+.lantern { position: relative; cursor: pointer; border-radius: 18px; padding: 22px 22px 18px;
+  background: linear-gradient(170deg, rgba(58,46,24,.92), rgba(38,32,20,.94));
+  border: 1px solid rgba(244,181,58,.22);
+  box-shadow: 0 10px 34px rgba(0,0,0,.4), 0 0 26px rgba(244,181,58,.05), inset 0 1px 0 rgba(255,220,150,.08);
+  animation: bob 7s ease-in-out infinite; transition: border-color .18s, box-shadow .18s, transform .18s; }
+.lantern:nth-child(2n) { animation-delay: -2.3s; animation-duration: 8s; }
+.lantern:nth-child(3n) { animation-delay: -4.1s; animation-duration: 6.4s; }
+.lantern:hover, .lantern:focus-visible { border-color: rgba(244,181,58,.55);
+  box-shadow: 0 14px 40px rgba(0,0,0,.45), 0 0 44px rgba(244,181,58,.14), inset 0 1px 0 rgba(255,220,150,.12); outline: none; }
+.lantern::after { content: ''; position: absolute; left: 12%; right: 12%; bottom: -14px; height: 16px;
+  background: radial-gradient(50% 100% at 50% 0%, rgba(244,181,58,.16), transparent 75%); pointer-events: none; }
+@keyframes bob { 0%,100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-5px) rotate(.25deg); } }
+.lantern h3 { font-family: var(--serif); font-weight: 700; font-size: 1.28rem; line-height: 1.4; margin: 2px 0 10px; color: #f6edda; }
+.lantern-foot { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.coins { color: var(--amber-soft); font-size: .88rem; font-variant-numeric: tabular-nums; }
+.wisher { color: var(--dim); font-size: .82rem; }
+.phrase { display: inline-block; font: 600 .72rem var(--sans); padding: 4px 12px; border-radius: 999px;
+  background: var(--surface-3); color: var(--muted); border: 1px solid var(--border); }
+.phrase.adopted { color: var(--adopted); border-color: rgba(124,196,255,.35); background: rgba(124,196,255,.08); }
+.phrase.building { color: var(--building); border-color: rgba(247,168,27,.35); background: rgba(247,168,27,.08); }
+.phrase.done { color: var(--success); border-color: rgba(74,222,128,.35); background: rgba(74,222,128,.08); }
+
+/* bottom-sheet:打開一盞燈 */
+.sheet-bg { position: fixed; inset: 0; z-index: 60; background: var(--overlay); backdrop-filter: blur(6px);
+  display: none; align-items: flex-end; justify-content: center; }
+.sheet-bg.open { display: flex; }
+.sheet { width: 100%; max-width: 640px; max-height: 88vh; overflow-y: auto; overscroll-behavior: contain;
+  background: linear-gradient(175deg, #292216, #1c1810 60%); border: 1px solid rgba(244,181,58,.25); border-bottom: none;
+  border-radius: 22px 22px 0 0; padding: 18px 22px 34px; box-shadow: 0 -20px 70px rgba(0,0,0,.6);
+  animation: sheetUp .28s cubic-bezier(.2,.9,.3,1); }
+@keyframes sheetUp { from { transform: translateY(48px); opacity: .4; } to { transform: none; opacity: 1; } }
+.sheet-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.sheet-close { min-height: 38px; padding: 7px 14px; font-size: .85rem; }
+.sheet-title { font-family: var(--serif); font-weight: 700; font-size: 1.5rem; line-height: 1.35; margin: 2px 0 4px; color: #f8f0dd; }
+.sheet-label { font-family: var(--serif); font-weight: 700; color: var(--amber-soft); font-size: .95rem; margin: 18px 0 7px;
+  display: flex; align-items: center; gap: 8px; }
+.sheet-label::before { content: ''; width: 3px; height: 14px; border-radius: 2px; background: var(--amber); }
+.hope { color: #eadfc8; margin: 4px 0; }
+.hope-list { margin: 4px 0 0; padding-left: 22px; color: #eadfc8; }
+.hope-list li { margin: 3px 0; }
+.sheet-actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 16px 0 4px; }
+.coin-btn { background: linear-gradient(135deg, var(--amber), var(--amber-deep)); color: var(--on-amber);
+  border: none; font-weight: 700; box-shadow: 0 6px 18px rgba(217,138,30,.3); }
+.coin-btn .coin-count { background: rgba(0,0,0,.18); border-radius: 999px; padding: 2px 10px; margin-left: 6px; font-variant-numeric: tabular-nums; }
+.celebrate { text-align: center; background: rgba(74,222,128,.06); border: 1px solid rgba(74,222,128,.28);
+  border-radius: 14px; padding: 16px; margin: 12px 0; }
+.celebrate-line { font-family: var(--serif); font-weight: 700; color: var(--success); font-size: 1.05rem; margin: 0 0 8px; }
+.celebrate-repo { color: var(--cyan); word-break: break-all; text-decoration: none; border-bottom: 1px solid rgba(34,211,238,.3); }
+.echo { background: rgba(255,232,180,.05); border-left: 2px solid rgba(244,181,58,.4); border-radius: 0 10px 10px 0;
+  padding: 9px 13px; margin: 7px 0; font-size: .93rem; }
+.helper { margin-top: 22px; border-top: 1px dashed var(--border); padding-top: 12px; }
+.helper summary { cursor: pointer; color: var(--muted); font-size: .9rem; padding: 8px 2px; list-style-position: inside; }
+.helper summary:hover { color: var(--amber-soft); }
+.helper-body { padding: 4px 2px 0; }
+.helper-tools { display: flex; gap: 8px; flex-wrap: wrap; margin: 14px 0 12px; }
+.helper-tools button { min-height: 40px; padding: 9px 14px; font-size: .87rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .lantern, .star-dot { animation: none; }
+  .sheet { animation: none; }
+}
+@media (min-width: 640px) { .sheet-bg { align-items: center; padding: 20px; } .sheet { border-radius: 22px; border-bottom: 1px solid rgba(244,181,58,.25); } }

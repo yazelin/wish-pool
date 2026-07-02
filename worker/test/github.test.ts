@@ -19,3 +19,19 @@ describe('createWishDiscussion', () => {
     expect(url).toBeNull()
   })
 })
+
+describe('notifyDiscussion', () => {
+  it('comments into the wish discussion', async () => {
+    const { notifyDiscussion } = await import('../src/lib/github')
+    fetchMock.get('https://api.github.com').intercept({ path: '/graphql', method: 'POST' })
+      .reply(200, { data: { repository: { discussion: { id: 'D9' } } } })
+    fetchMock.get('https://api.github.com').intercept({ path: '/graphql', method: 'POST' })
+      .reply(200, { data: { addDiscussionComment: { comment: { id: 'C1' } } } })
+    await notifyDiscussion({ GH_PAT: 'x' } as any, 'https://github.com/yazelin/wish-pool/discussions/9', 'msg')
+  })
+  it('skips silently without GH_PAT or url', async () => {
+    const { notifyDiscussion } = await import('../src/lib/github')
+    await notifyDiscussion({} as any, 'https://github.com/yazelin/wish-pool/discussions/9', 'msg')
+    await notifyDiscussion({ GH_PAT: 'x' } as any, null, 'msg')
+  })
+})

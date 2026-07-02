@@ -3,6 +3,8 @@ import type { Env } from '../env'
 import { wishExists, createAnswer, addAnswerVote, answerExists, addUpdate, createNeed } from '../lib/d1'
 import { verifyTurnstile } from '../lib/turnstile'
 import { checkAndBump, hashIp, sha256Hex } from '../lib/ratelimit'
+import { notifyDiscussion } from '../lib/github'
+import { getWish } from '../lib/d1'
 
 const DAY = 86400
 export const collab = new Hono<{ Bindings: Env }>()
@@ -45,6 +47,11 @@ collab.post('/api/wishes/:id/answers', async (c) => {
   if (!Number.isInteger(id) || !(await wishExists(c.env.DB, id))) return c.json({ error: 'not_found' }, 404)
   if (!isHttpUrl(b.repo_url)) return c.json({ error: 'bad_repo_url' }, 400)
   const aid = await createAnswer(c.env.DB, id, { repo_url: String(b.repo_url), note: b.note, github_handle: b.github_handle, agentTokenId: (c as any).get('atokId') }, Math.floor(Date.now() / 1000))
+  c.executionCtx.waitUntil((async () => {
+    const w = await getWish(c.env.DB, id)
+    const who = b.github_handle ? ` — @${b.github_handle}` : ''
+    await notifyDiscussion(c.env, w?.discussion_url ?? null, `【池面動態】有人交出實作:${String(b.repo_url)}${b.note ? `\n> ${String(b.note)}` : ''}${who}`).catch(() => {})
+  })())
   return c.json({ id: aid })
 })
 
@@ -64,6 +71,12 @@ collab.post('/api/wishes/:id/updates', async (c) => {
   if (!Number.isInteger(id) || !(await wishExists(c.env.DB, id))) return c.json({ error: 'not_found' }, 404)
   const body = String(b.body ?? '').trim(); if (!body) return c.json({ error: 'body_required' }, 400)
   const uid = await addUpdate(c.env.DB, id, { kind: String(b.kind ?? 'progress'), body, github_handle: b.github_handle, agentTokenId: (c as any).get('atokId') }, Math.floor(Date.now() / 1000))
+  c.executionCtx.waitUntil((async () => {
+    const w = await getWish(c.env.DB, id)
+    const kindLabel = ({ claim: '有人認領了這個願望', progress: '進度回報', blocked: '卡關回報' } as Record<string, string>)[String(b.kind ?? 'progress')] || '進度回報'
+    const who = b.github_handle ? ` — @${b.github_handle}` : ''
+    await notifyDiscussion(c.env, w?.discussion_url ?? null, `【池面動態】${kindLabel}:${body}${who}`).catch(() => {})
+  })())
   return c.json({ id: uid })
 })
 

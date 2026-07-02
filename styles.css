@@ -301,3 +301,4 @@ html.theme-day body { background:
 .need-reply { margin-top: 6px; min-height: 34px; padding: 6px 12px; font-size: .82rem; }
 .giscus-box { margin: 8px 0 4px; min-height: 120px; }
 .giscus-box .giscus { width: 100%; }
+.phrase.fresh { color: var(--on-amber); background: linear-gradient(135deg, var(--amber), var(--amber-deep)); border-color: transparent; font-weight: 700; margin-right: 8px; }

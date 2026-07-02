@@ -38,3 +38,26 @@ export async function createWishDiscussion(
   )
   return m.createDiscussion.discussion.url as string
 }
+
+// 願望有新動靜時,在它的專屬 Discussion 留言 —— 訂閱該串的人會收到 GitHub 原生通知。
+// 沒有 GH_PAT 或該願望沒有串,靜默跳過。
+export async function notifyDiscussion(env: Env, discussionUrl: string | null, message: string): Promise<void> {
+  if (!env.GH_PAT || !discussionUrl) return
+  const num = Number((discussionUrl.match(/\/discussions\/(\d+)$/) || [])[1])
+  if (!num) return
+  const gql = async (query: string, variables: Record<string, unknown>) => {
+    const r = await fetch('https://api.github.com/graphql', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${env.GH_PAT}`, 'Content-Type': 'application/json', 'User-Agent': 'wish-pool' },
+      body: JSON.stringify({ query, variables }),
+    })
+    if (!r.ok) throw new Error('gh http ' + r.status)
+    const j = (await r.json()) as { data?: any; errors?: unknown }
+    if (j.errors || !j.data) throw new Error('gh graphql error')
+    return j.data
+  }
+  const d = await gql('query($n:Int!){repository(owner:"yazelin",name:"wish-pool"){discussion(number:$n){id}}}', { n: num })
+  const did = d.repository?.discussion?.id
+  if (!did) return
+  await gql('mutation($id:ID!,$b:String!){addDiscussionComment(input:{discussionId:$id,body:$b}){comment{id}}}', { id: did, b: message })
+}

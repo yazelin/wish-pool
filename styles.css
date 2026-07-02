@@ -290,3 +290,10 @@ html.theme-day body { background:
 .theme-day .shot { border-color: #d5e9df; }
 .star-meta { flex: none; font-size: .76rem; color: var(--dim); font-variant-numeric: tabular-nums; padding-left: 2px; }
 .theme-day .star-meta { color: #a08a4e; }
+
+/* 主題切換:右上角低調小圓鈕(z 低於 sheet/modal,不蓋內容) */
+.theme-corner { position: fixed; top: 14px; right: 14px; z-index: 40; width: 42px; height: 42px; min-height: 0;
+  padding: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: .82rem; background: var(--surface-2); border: 1px solid var(--border); color: var(--muted); opacity: .72; }
+.theme-corner:hover { opacity: 1; color: var(--amber-soft); border-color: var(--amber-deep); transform: none; }
+.theme-day .theme-corner { background: rgba(255,255,255,.8); border-color: #cfe6dc; color: #5d7d75; }

@@ -117,7 +117,7 @@ if (localStorage.getItem(TK)) load()
 const themeBtn = document.querySelector('#theme-toggle')
 if (themeBtn) {
   const isDay = () => document.documentElement.classList.contains('theme-day')
-  const sync = () => { themeBtn.textContent = isDay() ? '夜晚' : '晨光' }
+  const sync = () => { themeBtn.textContent = isDay() ? '夜' : '晨' }
   themeBtn.onclick = () => {
     document.documentElement.classList.toggle('theme-day')
     try { localStorage.setItem('wishpool_theme', isDay() ? 'day' : 'night') } catch (e) { /* ignore */ }

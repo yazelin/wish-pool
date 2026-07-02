@@ -544,7 +544,7 @@ document.querySelectorAll('.sort[data-sort]').forEach((b) => b.setAttribute('ari
 
 /* 主題切換:預設晨光,可切夜晚(記在 localStorage) */
 const themeBtn = $('#theme-toggle')
-function syncThemeBtn() { themeBtn.textContent = isDay() ? '夜晚' : '晨光' }
+function syncThemeBtn() { themeBtn.textContent = isDay() ? '夜' : '晨' }
 themeBtn.onclick = () => {
   document.documentElement.classList.toggle('theme-day')
   try { localStorage.setItem('wishpool_theme', isDay() ? 'day' : 'night') } catch (e) { /* ignore */ }

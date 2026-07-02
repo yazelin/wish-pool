@@ -146,6 +146,7 @@ async function loadPond() {
     note.textContent = '池面還很安靜 —— 投下第一個願望吧。'
     note.style.display = floating.length ? 'none' : 'block'
   } catch (e) {
+    $('#starband-wrap').style.display = 'none'
     note.textContent = '池水暫時看不清,請稍後再試。'
     note.style.display = 'block'
   }
@@ -288,7 +289,17 @@ async function openSheet(id) {
   sheet.appendChild(helper)
 }
 
-async function refreshSheet() { if (openSheetId != null) { const id = openSheetId; await openSheet(id) } }
+async function refreshSheet() {
+  if (openSheetId == null) return
+  const id = openSheetId
+  // 保留協力層展開狀態與捲動位置(避免每次動作後被彈回頂部、折疊層收合)
+  const wasOpen = !!$('#sheet .helper')?.open
+  const scrollTop = sheet.scrollTop
+  await openSheet(id)
+  const h = $('#sheet .helper')
+  if (h && wasOpen) h.open = true
+  sheet.scrollTop = scrollTop
+}
 
 /* ============ 動作(全部沿用既有 API;成功後刷新 sheet) ============ */
 async function tossCoinFor(id, btn) {

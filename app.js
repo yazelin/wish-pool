@@ -225,30 +225,42 @@ function buildStarRiver(wishes) {
     r.strip.style.transform = `translateX(${-m}px)`
   })
   let rafId = null
+  let down = false
   const drift = () => {
-    if (!dragging && !hover) { offset += .35; apply() }
+    if (!down && !hover) { offset += .35; apply() }
     rafId = requestAnimationFrame(drift)
   }
   if (!reduced) rafId = requestAnimationFrame(drift)
   else apply()
+  // 不用 setPointerCapture:capture 會把 click 目標改指到河道,星星就點不開了。
+  // 改為 window 級 move/up 追蹤;超過 slop 才算拖曳,拖曳後的 click 用 capture 階段吃掉一次。
   band.addEventListener('pointerenter', () => { hover = true })
   band.addEventListener('pointerleave', () => { hover = false })
-  band.addEventListener('pointerdown', (e) => { dragging = true; lastX = e.clientX; moved = 0; band.setPointerCapture(e.pointerId) })
-  band.addEventListener('pointermove', (e) => {
-    if (!dragging) return
+  const onDown = (e) => { down = true; dragging = false; lastX = e.clientX; moved = 0 }
+  const onMove = (e) => {
+    if (!down) return
     const dx = e.clientX - lastX; lastX = e.clientX
-    moved += Math.abs(dx); offset -= dx; apply()
-  })
-  const endDrag = () => { if (dragging && moved > 6) suppress = true; dragging = false }
-  band.addEventListener('pointerup', endDrag)
-  band.addEventListener('pointercancel', endDrag)
+    moved += Math.abs(dx)
+    if (!dragging && moved > 4) dragging = true
+    if (dragging) { offset -= dx; apply() }
+  }
+  const onUp = () => { if (moved > 6) suppress = true; down = false; dragging = false }
+  band.addEventListener('pointerdown', onDown)
+  window.addEventListener('pointermove', onMove)
+  window.addEventListener('pointerup', onUp)
+  window.addEventListener('pointercancel', onUp)
   band.addEventListener('click', (e) => { if (suppress) { e.stopPropagation(); e.preventDefault(); suppress = false } }, true)
   band.addEventListener('wheel', (e) => {
     const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : (e.shiftKey ? e.deltaY : 0)
     if (d) { offset += d; apply(); e.preventDefault() }
   }, { passive: false })
   apply()
-  riverCleanup = () => { if (rafId) cancelAnimationFrame(rafId) }
+  riverCleanup = () => {
+    if (rafId) cancelAnimationFrame(rafId)
+    window.removeEventListener('pointermove', onMove)
+    window.removeEventListener('pointerup', onUp)
+    window.removeEventListener('pointercancel', onUp)
+  }
 }
 // 字型載入後寬度會變 → 重建一次確保接縫無誤;視窗改寬也重建
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (riverWishes.length) buildStarRiver(riverWishes) })

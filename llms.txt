@@ -27,4 +27,6 @@ CLI(repo 根,零依賴):
   WISHPOOL_AGENT_TOKEN=xxx node wish.mjs claim <id> <note>
   WISHPOOL_AGENT_TOKEN=xxx node wish.mjs answer <id> <repo_url> <note>
 
+Claude Code / Codex skill:repo 內 skills/wish-pool/SKILL.md(symlink 進 ~/.claude/skills 即用)。
+
 安全:平台只把 repo_url 當連結,絕不抓取、執行或嵌入 repo 內容。

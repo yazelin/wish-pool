@@ -6,6 +6,7 @@ export type WishRow = {
   id: number; title: string; problem: string | null; current: string | null
   desired: string | null; who: string | null; nickname: string | null
   status: string; votes: number; created_at: number; accepted_answer_id: number | null
+  echoes: number
 }
 export type Need = { id: number; type: string; body: string; resolved: number }
 export type Update = { id: number; kind: string; body: string; github_handle: string | null; created_at: number }
@@ -40,13 +41,13 @@ export async function listWishes(
   const order = opts.sort === 'hot' ? 'votes DESC, created_at DESC' : 'created_at DESC'
   const marks = PUBLIC_STATUSES.map(() => '?').join(',')
   const { results } = await db.prepare(
-    `SELECT * FROM wishes WHERE status IN (${marks}) ORDER BY ${order} LIMIT ? OFFSET ?`,
+    `SELECT *, (SELECT COUNT(*) FROM responses WHERE wish_id = wishes.id) AS echoes FROM wishes WHERE status IN (${marks}) ORDER BY ${order} LIMIT ? OFFSET ?`,
   ).bind(...PUBLIC_STATUSES, opts.limit, opts.offset).all<WishRow>()
   return results
 }
 
 export async function getWish(db: D1Database, id: number): Promise<Wish | null> {
-  const row = await db.prepare('SELECT * FROM wishes WHERE id = ?').bind(id).first<WishRow>()
+  const row = await db.prepare('SELECT *, (SELECT COUNT(*) FROM responses WHERE wish_id = wishes.id) AS echoes FROM wishes WHERE id = ?').bind(id).first<WishRow>()
   if (!row) return null
   const q = await db.prepare('SELECT id, type, body, resolved FROM needs WHERE wish_id = ? ORDER BY id').bind(id).all<Need>()
   const u = await db.prepare('SELECT id, kind, body, github_handle, created_at FROM updates WHERE wish_id = ? ORDER BY id').bind(id).all<Update>()

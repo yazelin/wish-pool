@@ -135,6 +135,8 @@ function renderStar(w) {
   s.setAttribute('aria-label', `成真的願望:${w.title}`)
   s.appendChild(el('span', 'star-dot'))
   s.appendChild(el('span', 'star-title', w.title))
+  const meta = `${w.votes} 幣` + (w.echoes ? ` · ${w.echoes} 共鳴` : '')
+  s.appendChild(el('span', 'star-meta', meta))
   s.onclick = () => openSheet(w.id)
   return s
 }
@@ -149,6 +151,7 @@ function renderLantern(w) {
   card.appendChild(el('h3', null, w.title))
   const foot = el('div', 'lantern-foot')
   foot.appendChild(el('span', 'coins', `已有 ${w.votes} 枚許願幣`))
+  if (w.echoes) foot.appendChild(el('span', 'coins', `${w.echoes} 人共鳴`))
   if (w.nickname) foot.appendChild(el('span', 'wisher', `${w.nickname} 的願望`))
   card.appendChild(foot)
   const open = () => openSheet(w.id)

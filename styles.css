@@ -282,3 +282,5 @@ html.theme-day body { background:
 .shot { display: block; width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 10px 0 4px; }
 .shot-sm { max-width: 420px; }
 .theme-day .shot { border-color: #d5e9df; }
+.star-meta { flex: none; font-size: .76rem; color: var(--dim); font-variant-numeric: tabular-nums; padding-left: 2px; }
+.theme-day .star-meta { color: #a08a4e; }

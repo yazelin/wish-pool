@@ -40,6 +40,14 @@ describe('listWishes', () => {
     expect(rows.map((r) => r.title)).toEqual(['V'])
   })
 
+  it('echoes = responses count', async () => {
+    const id = await createWish(db(), sample({ title: 'E' }), 1)
+    await addResponse(db(), id, { body: '我也要', kind: 'metoo' }, 2)
+    await addResponse(db(), id, { body: '超需要', kind: 'metoo' }, 3)
+    const rows = await listWishes(db(), { sort: 'new', limit: 50, offset: 0 })
+    expect(rows.find((r) => r.id === id)?.echoes).toBe(2)
+  })
+
   it('sort new = newest first', async () => {
     await createWish(db(), sample({ title: 'old' }), 100)
     await createWish(db(), sample({ title: 'new' }), 200)

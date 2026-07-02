@@ -257,7 +257,8 @@ html.theme-day body.pond-page { background:
 .theme-day .modal, .theme-day input, .theme-day textarea { background: #ffffff; border-color: #cfe6dc; color: #2c4a44; }
 .theme-day textarea, .theme-day input { background: #fbfdfc; }
 .theme-day button { background: #ffffff; border-color: #cfe6dc; color: #2c4a44; }
-.theme-day button.primary { background: linear-gradient(135deg, var(--amber), var(--amber-deep)); color: var(--on-amber); border-color: transparent; }
+.theme-day button.primary, .theme-day .coin-btn { background: linear-gradient(135deg, var(--amber), var(--amber-deep)); color: var(--on-amber); border-color: transparent; }
+.theme-day .coin-btn .coin-count { background: rgba(0,0,0,.15); }
 .theme-day button.sort { background: transparent; border-color: transparent; color: #5d7d75; }
 .theme-day button.sort.active { background: #dff0e9; color: #177f92; }
 .theme-day .footer-icon { background: #ffffff; border-color: #cfe6dc; color: #5d7d75; }

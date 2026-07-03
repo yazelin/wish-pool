@@ -60,7 +60,7 @@ async function load() {
     card.appendChild(el('div', 'muted', meta))
     // 決策儀表:進下一狀態前要看的訊號
     const dash = el('div', null,
-      `幣 ${w.votes} · 共鳴 ${w.echoes ?? 0} · 缺口未解 ${w.needs_open ?? 0}/${w.needs_total ?? 0} · 認領 ${w.claims ?? 0} · 實作 ${w.answers_count ?? 0} 版` +
+      `幣 ${w.votes} · 共鳴 ${w.echoes ?? 0} · ${(w.needs_total ?? 0) === 0 ? '無缺口' : ((w.needs_open ?? 0) === 0 ? `缺口 ${w.needs_total} 題全解` : `缺口還有 ${w.needs_open}/${w.needs_total} 題未解`)} · 認領 ${w.claims ?? 0} · 實作 ${w.answers_count ?? 0} 版` +
       (w.top_answer_votes ? `(最高票 ${w.top_answer_votes})` : ''))
     dash.style.cssText = 'margin-top:6px;font-size:.9rem;color:var(--amber-soft)'
     card.appendChild(dash)

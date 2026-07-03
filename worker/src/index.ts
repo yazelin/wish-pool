@@ -7,6 +7,7 @@ import { admin } from './routes/admin'
 import { collab } from './routes/collab'
 import { og } from './routes/og'
 import { agents } from './routes/agents'
+import { spec } from './routes/spec'
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -29,5 +30,6 @@ app.route('/', admin)
 app.route('/', collab)
 app.route('/', og)
 app.route('/', agents)
+app.route('/', spec)
 
 export default app

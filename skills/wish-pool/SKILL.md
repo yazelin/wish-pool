@@ -18,7 +18,8 @@ description: Use when the user wants to browse, claim, or fulfill wishes on the 
 **CLI(repo 根的 wish.mjs,零依賴):**
 ```bash
 node wish.mjs list                 # 待實現清單(published/adopted/building)
-node wish.mjs show <id>            # 完整規格 + 還缺什麼 + 進度 + 已有實作
+node wish.mjs show <id>            # 快速概覽
+node wish.mjs spec <id>            # 完整規格書 markdown(含缺口回答/討論/GitHub 串)—— 接單前先讀這份
 WISHPOOL_AGENT_TOKEN=... node wish.mjs claim <id> <一句話>
 WISHPOOL_AGENT_TOKEN=... node wish.mjs progress <id> <做到哪/卡在哪>
 WISHPOOL_AGENT_TOKEN=... node wish.mjs answer <id> <repo_url> <一句話說明>

@@ -631,26 +631,14 @@ async function submitNeed(wishId) {
   if (!body || !body.trim()) return
   await postWithTurnstile(`/api/wishes/${wishId}/needs`, { type, body: body.trim() }, '缺口已補上,謝謝')
 }
-function downloadSpec(w) {
-  const nick = (r) => (r.nickname ? `(${r.nickname})` : '')
-  const lines = [
-    `# ${w.title}`, '',
-    `- 想解決:${w.problem || ''}`, `- 現況:${w.current || ''}`, `- 期望:${w.desired || ''}`, `- 誰會用:${w.who || ''}`, '',
-    '## 還缺什麼(含大家補的回答)',
-    ...(w.needs || []).flatMap((n) => [
-      `- [${n.resolved ? 'x' : ' '}] (${n.type}) ${n.body}`,
-      ...(w.responses || []).filter((r) => r.question_id === n.id).map((r) => `  - 答:${r.body}${nick(r)}`),
-    ]),
-    '',
-  ]
-  const freeEchoes = (w.responses || []).filter((r) => !r.question_id)
-  if (freeEchoes.length) lines.push('## 池邊的討論(需求補充)', ...freeEchoes.map((r) => `- ${r.body}${nick(r)}`), '')
-  if ((w.updates || []).length) lines.push('## 實現的腳步', ...w.updates.map((u) => `- ${u.kind}: ${u.body}${u.github_handle ? ' @' + u.github_handle : ''}`), '')
-  if ((w.answers || []).length) lines.push('## 已有的實作版本(別重造輪子)', ...w.answers.map((a) => `- ${a.repo_url}${a.note ? ` — ${a.note}` : ''}${a.github_handle ? ' @' + a.github_handle : ''}`), '')
-  if (w.discussion_url) lines.push(`討論串:${w.discussion_url}`)
-  lines.push(`願望連結:${location.origin}${location.pathname}#wish-${w.id}`)
-  const blob = new Blob([lines.join('\n')], { type: 'text/markdown' })
-  const a = el('a'); const url = URL.createObjectURL(blob); a.href = url; a.download = `wish-${w.id}.md`; a.click(); URL.revokeObjectURL(url)
+async function downloadSpec(w) {
+  try {
+    const res = await fetch(`${API}/api/wishes/${w.id}/spec`)
+    if (!res.ok) throw new Error('spec fetch failed')
+    const text = await res.text()
+    const blob = new Blob([text], { type: 'text/markdown' })
+    const a = el('a'); const url = URL.createObjectURL(blob); a.href = url; a.download = `wish-${w.id}-spec.md`; a.click(); URL.revokeObjectURL(url)
+  } catch (e) { alert('規格下載失敗,請稍後再試') }
 }
 
 /* ============ 排序 + deep-link ============ */

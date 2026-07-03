@@ -158,3 +158,26 @@ describe('POST vote + responses', () => {
     expect(res.status).toBe(404)
   })
 })
+
+describe('GET /api/wishes/:id/spec', () => {
+  it('compiles complete markdown spec (needs+answers to needs+discussion+answers)', async () => {
+    const { createWish, createNeed, addResponse, addUpdate, createAnswer } = await import('../src/lib/d1')
+    const id = await createWish(env.DB, { title: 'S', problem: 'p', desired: 'd', status: 'published', open_questions: [] }, 1)
+    const nid = await createNeed(env.DB, id, 'info', '網頁還是 App?')
+    await addResponse(env.DB, id, { body: '網頁', nickname: '發呆', kind: 'answer', questionId: nid }, 2)
+    await addResponse(env.DB, id, { body: '希望有深色模式', kind: 'metoo' }, 3)
+    await addUpdate(env.DB, id, { kind: 'claim', body: '我來' }, 4)
+    await createAnswer(env.DB, id, { repo_url: 'https://github.com/x/a', note: 'v1' }, 5)
+    const res = await SELF.fetch(`${O}/api/wishes/${id}/spec`)
+    expect(res.status).toBe(200)
+    const t = await res.text()
+    for (const frag of ['# 願望 #', '網頁還是 App?', '答:網頁(發呆)', '希望有深色模式', 'claim: 我來', 'https://github.com/x/a']) {
+      expect(t).toContain(frag)
+    }
+  })
+  it('404 for pending/hidden wishes', async () => {
+    const { createWish } = await import('../src/lib/d1')
+    const id = await createWish(env.DB, { title: 'P', status: 'pending', open_questions: [] }, 1)
+    expect((await SELF.fetch(`${O}/api/wishes/${id}/spec`)).status).toBe(404)
+  })
+})

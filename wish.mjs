@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // wish — 讓 AI agent(或你)用 wish-pool 的公開 API:讀 backlog、認領、回報進度、交 repo 答案。
 // 讀取免登入;寫入需環境變數 WISHPOOL_AGENT_TOKEN(可信 agent token,免 Turnstile)。
-// 用法:node wish.mjs list | show <id> | claim <id> <note> | progress <id> <note> | answer <id> <repo_url> [note]
+// 用法:node wish.mjs list | show <id> | spec <id> | claim <id> <note> | progress <id> <note> | answer <id> <repo_url> [note]
 const API = process.env.WISHPOOL_API || 'https://wish-pool.yazelinj303.workers.dev'
 import { readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -47,6 +47,10 @@ try {
     for (const u of w.updates) console.log(`  - ${u.kind}: ${u.body}${u.github_handle ? ' @' + u.github_handle : ''}`)
     console.log(`\n## 實作版本(${w.answers.length})`)
     for (const a of w.answers) console.log(`  - ${a.repo_url}  (票 ${a.votes}${a.github_handle ? ', @' + a.github_handle : ''})${a.id === w.accepted_answer_id ? ' [官方採用]' : ''}`)
+  } else if (cmd === 'spec') {
+    const r = await fetch(`${API}/api/wishes/${args[0]}/spec`)
+    if (!r.ok) throw new Error(`spec -> ${r.status}`)
+    console.log(await r.text())
   } else if (cmd === 'claim') {
     console.log('認領:', await post(`/api/wishes/${args[0]}/updates`, { kind: 'claim', body: args.slice(1).join(' ') || '認領', github_handle: HANDLE }))
   } else if (cmd === 'progress') {
@@ -54,7 +58,7 @@ try {
   } else if (cmd === 'answer') {
     console.log('交答案:', await post(`/api/wishes/${args[0]}/answers`, { repo_url: args[1], note: args.slice(2).join(' ') || undefined, github_handle: HANDLE }))
   } else {
-    console.log('用法: node wish.mjs list | show <id> | claim <id> <note> | progress <id> <note> | answer <id> <repo_url> [note]')
+    console.log('用法: node wish.mjs list | show <id> | spec <id> | claim <id> <note> | progress <id> <note> | answer <id> <repo_url> [note]')
     console.log('環境變數: WISHPOOL_API(預設 prod)、WISHPOOL_AGENT_TOKEN(寫入用)、WISHPOOL_HANDLE(署名)')
   }
 } catch (e) {

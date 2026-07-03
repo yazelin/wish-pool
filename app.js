@@ -11,12 +11,31 @@ let openSheetId = null      // 目前打開的願望 id
 
 const PHRASE = { published: '池中漂著', adopted: '有人心動了', building: '實現中', done: '成真了' }
 
-// D:記住你參與過的願望(許願/認領/回報/交實作/留言),回站比對動態數,亮「有新進展」
+// 站內通知(issue #3):記住你參與過的願望(許願/回答缺口/留言/認領/回報/交實作),
+// 回站用清單一次比對「活動數變多或狀態變了」→ 燈/星亮「有新進展」;打開願望時標出哪幾筆是新的。
+// 記錄存 localStorage(不註冊、不收 email,零隱私面);換裝置或清資料就重新開始 —— 跨裝置要通知,走願望討論串的 GitHub Subscribe。
+// 記錄格式 v2:{ t: 已看過的活動總數, s: 已看過的狀態, at: 已看過的最新活動時間(epoch 秒) };
+// 兼容 v1(純數字 = { t: n },s/at 未知則該項比對跳過,下次看過即補齊)。
 const WATCH_KEY = 'wishpool_watch'
-function getWatch() { try { return JSON.parse(localStorage.getItem(WATCH_KEY)) || {} } catch (e) { return {} } }
+function normSeen(v) { return typeof v === 'number' ? { t: v } : (v && typeof v === 'object' ? v : { t: 0 }) }
+function getWatch() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(WATCH_KEY)) || {}
+    const w = {}; Object.keys(raw).forEach((k) => { w[k] = normSeen(raw[k]) })
+    return w
+  } catch (e) { return {} }
+}
 function setWatch(w) { try { localStorage.setItem(WATCH_KEY, JSON.stringify(w)) } catch (e) { /* ignore */ } }
-function watchWish(id, total) { const w = getWatch(); if (total != null || w[id] == null) w[id] = total ?? 0; setWatch(w) }
+function watchWish(id, seen) { const w = getWatch(); if (seen || w[id] == null) w[id] = seen || { t: 0 }; setWatch(w) }
 function activityTotal(w) { return (w.answers?.length || 0) + (w.updates?.length || 0) + (w.responses?.length || 0) }
+// 清單列(帶計數)與詳情(帶陣列)同一套口徑
+function activityTotalRow(w) { return (w.answers_count || 0) + (w.updates_count || 0) + (w.echoes || 0) }
+function lastActivityAt(w) {
+  let m = 0
+  ;[...(w.answers || []), ...(w.updates || []), ...(w.responses || [])].forEach((x) => { if (x.created_at > m) m = x.created_at })
+  return m
+}
+function isFresh(seen, total, status) { return total > (seen.t || 0) || (seen.s != null && status !== seen.s) }
 
 async function api(path, opts) {
   const res = await fetch(API + path, opts)
@@ -169,6 +188,7 @@ function wishSentence(w) {
 
 function renderStar(w) {
   const s = el('button', 'star')
+  s.dataset.wid = w.id
   s.setAttribute('aria-label', `成真的願望:${w.title}`)
   s.appendChild(el('span', 'star-dot'))
   s.appendChild(el('span', 'star-title', w.title))
@@ -218,27 +238,45 @@ async function loadPond() {
   checkWatched()
 }
 
+let freshIds = new Set()   // 本次載入判定「有新進展」的願望 id(星河重建後要重掛)
+function applyFreshBadges() {
+  freshIds.forEach((id) => {
+    const card = document.getElementById('wish-' + id)
+    if (card && !card.querySelector('.phrase.fresh')) card.prepend(el('span', 'phrase fresh', '有新進展'))
+    document.querySelectorAll(`.star[data-wid="${id}"]`).forEach((s) => { s.classList.add('fresh'); s.title = '有新進展' })
+  })
+}
+function clearFresh(id) {
+  freshIds.delete(String(id))   // freshIds 的 key 來自 Object.keys(是字串);id 可能是數字
+  document.querySelector(`#wish-${id} .phrase.fresh`)?.remove()
+  document.querySelectorAll(`.star[data-wid="${id}"]`).forEach((s) => { s.classList.remove('fresh'); s.removeAttribute('title') })
+}
 async function checkWatched() {
   const watch = getWatch()
-  const ids = Object.keys(watch).slice(0, 15)
+  const ids = Object.keys(watch)
   if (!ids.length) return
-  let freshCount = 0
+  freshIds = new Set()
+  // 主路徑:清單已帶活動計數與狀態,零額外請求;不在清單上的(超過 100 則、被下架…)才個別補抓,封頂 10 次
+  let fallbackBudget = 10
   await Promise.all(ids.map(async (id) => {
+    const row = wishCache.find((x) => x.id === Number(id))
+    if (row) {
+      if (isFresh(watch[id], activityTotalRow(row), row.status)) freshIds.add(id)
+      return
+    }
+    if (fallbackBudget-- <= 0) return
     try {
       const w = await api(`/api/wishes/${id}`)
-      if (activityTotal(w) > watch[id]) {
-        freshCount++
-        const card = document.getElementById('wish-' + id)
-        if (card && !card.querySelector('.phrase.fresh')) card.prepend(el('span', 'phrase fresh', '有新進展'))
-      }
+      if (w.status !== 'hidden' && isFresh(watch[id], activityTotal(w), w.status)) freshIds.add(id)
     } catch (e) { if (e.status === 404) { delete watch[id]; setWatch(watch) } }
   }))
   document.getElementById('watch-note')?.remove()
-  if (freshCount) {
-    const n = el('p', 'muted', `你參與過的願望有 ${freshCount} 則新動靜 —— 找找亮「有新進展」的燈`)
+  if (freshIds.size) {
+    const n = el('p', 'muted', `你參與過的願望有 ${freshIds.size} 則新動靜 —— 找找亮「有新進展」的燈,或星河上發亮的星`)
     n.id = 'watch-note'; n.style.textAlign = 'center'
     $('#lanterns').before(n)
   }
+  applyFreshBadges()
 }
 
 /* ============ 成真星河:三排錯落、可拖曳、慢漂、無限輪迴 ============ */
@@ -322,6 +360,7 @@ function buildStarRiver(wishes) {
     window.removeEventListener('pointerup', onUp)
     window.removeEventListener('pointercancel', onUp)
   }
+  applyFreshBadges()   // 星河重建(字型載入/改視窗寬)後,把「有新進展」重新掛回星星上
 }
 // 字型載入後寬度會變 → 重建一次確保接縫無誤;視窗改寬也重建
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (riverWishes.length) buildStarRiver(riverWishes) })
@@ -338,9 +377,13 @@ async function openSheet(id) {
   let w
   try { w = await api(`/api/wishes/${id}`) } catch (e) { alert('這個願望暫時打不開,請稍後再試'); return }
   openSheetId = id
+  // 標已看:先留住上次看到哪(newSince),再覆寫 seen 記錄;newSince 之後的項目在下方標「新」
   const watchSeen = getWatch()
-  if (watchSeen[id] != null) { watchSeen[id] = activityTotal(w); setWatch(watchSeen) }
-  document.querySelector(`#wish-${id} .phrase.fresh`)?.remove()
+  const prevSeen = watchSeen[id] ?? null
+  const newSince = prevSeen && prevSeen.at != null ? prevSeen.at : null
+  if (prevSeen) { watchSeen[id] = { t: activityTotal(w), s: w.status, at: lastActivityAt(w) }; setWatch(watchSeen) }
+  clearFresh(id)
+  const tagNew = (node, createdAt) => { if (newSince != null && createdAt > newSince) node.appendChild(el('span', 'tag-new', '新')) }
   document.body.style.overflow = 'hidden'
   sheet.innerHTML = ''
   sheetBg.classList.add('open')
@@ -405,7 +448,9 @@ async function openSheet(id) {
     sheet.appendChild(el('p', 'sheet-label', `池邊的討論(${freeEchoes.length})`))
     freeEchoes.forEach((r) => {
       const rr = el('div', 'echo')
-      rr.appendChild(el('div', null, r.body))
+      const body = el('div', null, r.body)
+      tagNew(body, r.created_at)
+      rr.appendChild(body)
       rr.appendChild(el('div', 'wisher', r.nickname ? `—— ${r.nickname}` : '—— 有人輕聲說'))
       sheet.appendChild(rr)
     })
@@ -487,6 +532,7 @@ async function openSheet(id) {
     line.appendChild(el('span', 'update-kind ' + u.kind, kind))
     line.appendChild(el('span', null, ' ' + u.body))
     if (u.github_handle) line.appendChild(el('span', 'wisher', '  @' + u.github_handle))
+    tagNew(line, u.created_at)
     hv.appendChild(line)
   })
   else hv.appendChild(el('p', 'muted', '還沒有人動手,等一位有緣人'))
@@ -500,6 +546,7 @@ async function openSheet(id) {
     top.appendChild(link)
     if (a.id === w.accepted_answer_id) top.appendChild(el('span', 'phrase done', '被採用'))
     else if (i === 0 && a.votes > 0) top.appendChild(el('span', 'phrase adopted', '目前最高票'))
+    tagNew(top, a.created_at)
     ans.appendChild(top)
     const ashot = repoPreview(a.repo_url)
     if (ashot) { const im = el('img', 'shot shot-sm'); im.src = ashot; im.alt = '實作預覽'; im.loading = 'lazy'; ans.appendChild(im) }
@@ -563,7 +610,6 @@ async function tossCoinFor(id, btn) {
 }
 
 async function answerNeed(wishId, needId) {
-  watchWish(wishId)
   const body = prompt('你的回答(會掛在這個缺口下,缺口會標為已解):')
   if (!body || !body.trim()) return
   const nickname = prompt('留個名字嗎?(可留空)') || undefined
@@ -573,12 +619,12 @@ async function answerNeed(wishId, needId) {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ turnstileToken: token, body: body.trim(), nickname, kind: 'answer', questionId: needId }),
     })
+    watchWish(wishId)   // 成功才記關注(refreshSheet 會馬上把現況標為已看)
     await refreshSheet()
   } catch (e) { alert('送出失敗,請稍後再試') }
 }
 
 async function sendEcho(wishId) {
-  watchWish(wishId)
   const body = prompt('想對這個願望說什麼?(例:我也想要,而且希望能…)')
   if (!body || !body.trim()) return
   const nickname = prompt('留個名字嗎?(可留空)') || undefined
@@ -588,25 +634,26 @@ async function sendEcho(wishId) {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ turnstileToken: token, body: body.trim(), nickname, kind: 'metoo' }),
     })
+    watchWish(wishId)
     await refreshSheet()
   } catch (e) { alert('送出失敗,請稍後再試') }
 }
 
-async function postWithTurnstile(path, payload, okMsg) {
+async function postWithTurnstile(path, payload, okMsg, watchId) {
   try {
     const token = await getTurnstileToken()
     await api(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...payload, turnstileToken: token }) })
+    if (watchId != null) watchWish(watchId)   // 成功才記關注,取消/失敗不留假「有新進展」
     alert(okMsg)
     await refreshSheet()
   } catch (e) { alert(e.status === 429 ? '今天次數已達上限,明天再來' : '送出失敗,請稍後再試') }
 }
 async function submitAnswer(wishId) {
-  watchWish(wishId)
   const repo = prompt('repo 網址(自己做的,或你知道的現成專案都可以 —— 幫忙指路也算實現):')
   if (!repo || !/^https?:\/\//.test(repo.trim())) { if (repo !== null) alert('請貼有效的 http(s) 網址'); return }
   const note = prompt('一句話說明(指路現成專案請註明「已有現成」,可留空):') || undefined
   const handle = prompt('你的 GitHub 帳號(選填,未驗證):') || undefined
-  await postWithTurnstile(`/api/wishes/${wishId}/answers`, { repo_url: repo.trim(), note, github_handle: handle }, '收到你的實作,謝謝你讓願望往前一步')
+  await postWithTurnstile(`/api/wishes/${wishId}/answers`, { repo_url: repo.trim(), note, github_handle: handle }, '收到你的實作,謝謝你讓願望往前一步', wishId)
 }
 async function voteAnswer(answerId, btn) {
   try {
@@ -617,12 +664,11 @@ async function voteAnswer(answerId, btn) {
   } catch (e) { alert('投幣沒成功,請稍後再試') }
 }
 async function submitUpdate(wishId, isClaim) {
-  watchWish(wishId)
   const kind = isClaim ? 'claim' : (prompt('這是進度還是卡關?輸入 1=進度 2=卡關', '1') === '2' ? 'blocked' : 'progress')
   const body = prompt(isClaim ? '跟大家說一聲你要實現它(例:我來做,預計先做核心功能)' : '進度說明(例:做到 X / 卡在 Y):')
   if (!body || !body.trim()) return
   const handle = prompt('你的 GitHub 帳號(選填):') || undefined
-  await postWithTurnstile(`/api/wishes/${wishId}/updates`, { kind, body: body.trim(), github_handle: handle }, isClaim ? '已記下 —— 這個願望有了實現它的人' : '進度已記下,謝謝')
+  await postWithTurnstile(`/api/wishes/${wishId}/updates`, { kind, body: body.trim(), github_handle: handle }, isClaim ? '已記下 —— 這個願望有了實現它的人' : '進度已記下,謝謝', wishId)
 }
 async function submitNeed(wishId) {
   const typeLabel = prompt('缺什麼類型:1=資訊 2=技能 3=資源', '1')
@@ -785,13 +831,14 @@ async function submitWish(form, r, submit) {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
     })
     closeModal()
+    // 許願即記關注(含 pending:之後上牆=狀態變化,回站會亮「有新進展」);at:0 = 之後的每筆動靜都算新
+    watchWish(res.id, { t: 0, s: res.status, at: 0 })
     if (res.status === 'published') {
       pond.coin(innerWidth / 2, innerHeight * .45, () => {})
-      watchWish(res.id, 0)
-      alert('你的願望已經落進池裡了。等等會幫你打開它 —— 想收進展通知,可到它的討論串按 Subscribe(需 GitHub 帳號)')
+      alert('你的願望已經落進池裡了。等等會幫你打開它 —— 之後回到這裡,有新實作或進度時你的願望會亮「有新進展」;想收 email 通知,可到它的討論串按 Subscribe(需 GitHub 帳號)')
       await loadPond()
       setTimeout(() => openSheet(res.id), 1800)   // 等自動開串一拍,打開時討論區就在
-    } else alert('已收到,站方看過後就會出現在池面上,謝謝')
+    } else alert('已收到,站方看過後就會出現在池面上,謝謝。之後回到這裡,它上牆或有動靜時會亮「有新進展」')
   } catch (e) {
     if (submit) submit.disabled = false
     alert(e.status === 429 ? '今天投的願望已達上限,明天再來' : '送出失敗,請稍後再試')

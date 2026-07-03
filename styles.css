@@ -302,4 +302,11 @@ html.theme-day body { background:
 .giscus-box { margin: 8px 0 4px; min-height: 120px; }
 .giscus-box .giscus { width: 100%; }
 .phrase.fresh { color: var(--on-amber); background: linear-gradient(135deg, var(--amber), var(--amber-deep)); border-color: transparent; font-weight: 700; margin-right: 8px; }
+/* 站內通知:sheet 內「上次看過之後」的新項目 */
+.tag-new { display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: 999px; font-size: .7rem; font-weight: 700; line-height: 1.5;
+  color: var(--on-amber); background: linear-gradient(135deg, var(--amber), var(--amber-deep)); vertical-align: text-bottom; }
+/* 站內通知:成真的星有新動靜時發亮(只動光暈不動排版 —— 星河每組寬度是先量好的,加字會裂縫) */
+.star.fresh { border-color: var(--amber); background: rgba(244,181,58,.16); }
+.star.fresh .star-dot { animation: starPulseFresh 1.4s ease-in-out infinite; }
+@keyframes starPulseFresh { 0%,100% { box-shadow: 0 0 10px 3px rgba(244,181,58,.6); } 50% { box-shadow: 0 0 18px 7px rgba(244,181,58,.95); } }
 .sub-hint { font-size: .85rem; margin: -2px 0 10px; }

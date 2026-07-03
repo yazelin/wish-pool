@@ -9,6 +9,8 @@ export type WishRow = {
   echoes: number
   discussion_url: string | null
 }
+// 池面清單列:WishRow + 活動計數(站內通知「有新進展」徽章的資料來源,一次列表請求就能比對)
+export type WishListRow = WishRow & { answers_count: number; updates_count: number }
 export type Need = { id: number; type: string; body: string; resolved: number }
 export type Update = { id: number; kind: string; body: string; github_handle: string | null; created_at: number }
 export type Answer = { id: number; repo_url: string; note: string | null; github_handle: string | null; votes: number; status: string; created_at: number }
@@ -20,6 +22,10 @@ export type Wish = WishRow & {
 }
 
 const PUBLIC_STATUSES = ['published', 'adopted', 'building', 'done']
+
+// 公開端點的 wishes 欄位白名單:新增欄位(例如未來的通知 email)預設「不」外洩,
+// 要公開必須進這串名單並過 notify.route.test 的欄位契約測試。
+const WISH_PUBLIC_COLS = 'id, title, problem, current, desired, who, nickname, status, votes, created_at, accepted_answer_id, discussion_url'
 
 export async function createWish(db: D1Database, w: NewWish, now: number): Promise<number> {
   const res = await db.prepare(
@@ -38,17 +44,22 @@ export async function createWish(db: D1Database, w: NewWish, now: number): Promi
 
 export async function listWishes(
   db: D1Database, opts: { sort: 'hot' | 'new'; limit: number; offset: number },
-): Promise<WishRow[]> {
+): Promise<WishListRow[]> {
   const order = opts.sort === 'hot' ? 'votes DESC, created_at DESC' : 'created_at DESC'
   const marks = PUBLIC_STATUSES.map(() => '?').join(',')
+  // answers_count 只算 visible(與詳情頁一致),updates/responses 全算 —— 前端「有新進展」用同一套口徑比對
   const { results } = await db.prepare(
-    `SELECT *, (SELECT COUNT(*) FROM responses WHERE wish_id = wishes.id) AS echoes FROM wishes WHERE status IN (${marks}) ORDER BY ${order} LIMIT ? OFFSET ?`,
-  ).bind(...PUBLIC_STATUSES, opts.limit, opts.offset).all<WishRow>()
+    `SELECT ${WISH_PUBLIC_COLS},
+       (SELECT COUNT(*) FROM responses WHERE wish_id = wishes.id) AS echoes,
+       (SELECT COUNT(*) FROM answers WHERE wish_id = wishes.id AND status = 'visible') AS answers_count,
+       (SELECT COUNT(*) FROM updates WHERE wish_id = wishes.id) AS updates_count
+     FROM wishes WHERE wishes.status IN (${marks}) ORDER BY ${order} LIMIT ? OFFSET ?`,
+  ).bind(...PUBLIC_STATUSES, opts.limit, opts.offset).all<WishListRow>()
   return results
 }
 
 export async function getWish(db: D1Database, id: number): Promise<Wish | null> {
-  const row = await db.prepare('SELECT *, (SELECT COUNT(*) FROM responses WHERE wish_id = wishes.id) AS echoes FROM wishes WHERE id = ?').bind(id).first<WishRow>()
+  const row = await db.prepare(`SELECT ${WISH_PUBLIC_COLS}, (SELECT COUNT(*) FROM responses WHERE wish_id = wishes.id) AS echoes FROM wishes WHERE id = ?`).bind(id).first<WishRow>()
   if (!row) return null
   const q = await db.prepare('SELECT id, type, body, resolved FROM needs WHERE wish_id = ? ORDER BY id').bind(id).all<Need>()
   const u = await db.prepare('SELECT id, kind, body, github_handle, created_at FROM updates WHERE wish_id = ? ORDER BY id').bind(id).all<Update>()

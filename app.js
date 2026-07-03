@@ -160,8 +160,12 @@ const pond = (() => {
     else setTimeout(frame, 400)
   }
   if (!reduced) requestAnimationFrame(frame)
-  // 點水面本身也起漣漪(純氛圍)
-  addEventListener('pointerdown', (e) => { if (e.target === document.body || e.target === cv) ripple(e.clientX, e.clientY) })
+  // 點水面起漣漪(純氛圍):反向過濾 —— 只要沒點到互動元件,整個頁面都是水面
+  addEventListener('pointerdown', (e) => {
+    if (!(e.target instanceof Element)) return
+    if (e.target.closest('button, a, input, textarea, select, .lantern, .star, .sheet, .modal, details, summary, iframe')) return
+    ripple(e.clientX, e.clientY)
+  })
   return { ripple, coin: reduced ? (x, y, done) => { done && done() } : coin }
 })()
 

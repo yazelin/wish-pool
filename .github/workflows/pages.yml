@@ -9,7 +9,7 @@ permissions:
   id-token: write
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false   # 排隊不互砍:連續 push 時逐個部署,避免搶 Pages 單線閘
 jobs:
   deploy:
     environment:
@@ -23,4 +23,12 @@ jobs:
         with:
           path: '.'
       - id: deployment
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+      - name: wait before retry
+        if: steps.deployment.outcome == 'failure'
+        run: sleep 90
+      - name: retry deploy once
+        id: deployment-retry
+        if: steps.deployment.outcome == 'failure'
         uses: actions/deploy-pages@v4

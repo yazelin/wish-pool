@@ -178,6 +178,74 @@ function repoPreview(repoUrl) {
   } catch (e) { return null }
 }
 
+/* ============ 小工具:安全連結化 + GitHub 帳號連結 + 自製表單彈窗 ============ */
+// 內文中的 http(s) 連結變可點(逐段 textContent 組裝,無 XSS 面)
+function linkifyInto(parent, text) {
+  const re = /https?:\/\/[^\s]+/g
+  let last = 0, m
+  while ((m = re.exec(text))) {
+    if (m.index > last) parent.append(text.slice(last, m.index))
+    const a = el('a', 'repo-link', m[0])
+    a.href = m[0]; a.target = '_blank'; a.rel = 'noopener nofollow'
+    parent.appendChild(a)
+    last = m.index + m[0].length
+  }
+  if (last < text.length) parent.append(text.slice(last))
+}
+// @handle -> GitHub 個人頁連結(格式不合就退回純文字)
+function ghLink(handle) {
+  if (/^[A-Za-z0-9-]{1,39}$/.test(handle)) {
+    const a = el('a', 'repo-link', '@' + handle)
+    a.href = 'https://github.com/' + handle; a.target = '_blank'; a.rel = 'noopener nofollow'
+    return a
+  }
+  return el('span', null, '@' + handle)
+}
+// 自製表單彈窗:原生 prompt() 在手機切走畫面會被瀏覽器自動取消(打一半全丟)。
+// 這個 DOM 彈窗切走再回來都在;點背景「不」取消(防誤觸),只有取消鈕會關。
+function askForm(title, fields) {
+  return new Promise((resolve) => {
+    const bg = el('div', 'modal-bg open')
+    bg.style.zIndex = '70'
+    const box = el('div', 'modal')
+    box.appendChild(el('h3', null, title))
+    const inputs = {}
+    fields.forEach((f) => {
+      const wrap = el('div'); wrap.style.marginBottom = '8px'
+      if (f.label) wrap.appendChild(el('label', 'muted', f.label))
+      let inp
+      if (f.type === 'textarea') inp = el('textarea')
+      else if (f.type === 'select') {
+        inp = document.createElement('select')
+        f.options.forEach(([v, t]) => { const o = el('option', null, t); o.value = v; inp.appendChild(o) })
+      } else inp = el('input')
+      if (f.placeholder) inp.placeholder = f.placeholder
+      inputs[f.name] = inp
+      wrap.appendChild(inp); box.appendChild(wrap)
+    })
+    const row = el('div', 'row'); row.style.marginTop = '10px'
+    const ok = el('button', 'primary', '送出')
+    const cancel = el('button', null, '取消')
+    const done = (v) => { bg.remove(); resolve(v) }
+    ok.onclick = () => {
+      const vals = {}
+      for (const f of fields) {
+        const v = inputs[f.name].value.trim()
+        if (f.required && !v) { inputs[f.name].focus(); inputs[f.name].style.borderColor = 'var(--danger)'; return }
+        if (f.check && v) { const err = f.check(v); if (err) { alert(err); inputs[f.name].focus(); return } }
+        vals[f.name] = v || undefined
+      }
+      done(vals)
+    }
+    cancel.onclick = () => done(null)
+    row.appendChild(ok); row.appendChild(cancel)
+    box.appendChild(row)
+    bg.appendChild(box)
+    document.body.appendChild(bg)
+    setTimeout(() => { const first = fields[0] && inputs[fields[0].name]; first && first.focus() }, 60)
+  })
+}
+
 /* ============ 池面渲染:星帶(成真)+ 願望燈 ============ */
 function wishSentence(w) {
   // desired 可能是「功能1;功能2」清單或一句話
@@ -220,16 +288,18 @@ function renderLantern(w) {
 async function loadPond() {
   const lan = $('#lanterns'), band = $('#starband'), note = $('#empty')
   try {
-    const { wishes } = await api(`/api/wishes?sort=${currentSort}&limit=100`)
+    const showDone = currentSort === 'done'   // 「已實現」頁籤:成真願望用清單好好看(比在河道上追方便)
+    const { wishes } = await api(`/api/wishes?sort=${showDone ? 'new' : currentSort}&limit=100`)
     wishCache = wishes
     const done = wishes.filter((w) => w.status === 'done')
     const floating = wishes.filter((w) => w.status !== 'done')
     lan.innerHTML = ''
     $('#starband-wrap').style.display = done.length ? '' : 'none'
     buildStarRiver(done)
-    floating.forEach((w) => lan.appendChild(renderLantern(w)))
-    note.textContent = '池面還很安靜 —— 投下第一個願望吧。'
-    note.style.display = floating.length ? 'none' : 'block'
+    const shown = showDone ? done : floating
+    shown.forEach((w) => lan.appendChild(renderLantern(w)))
+    note.textContent = showDone ? '還沒有成真的願望 —— 快了。' : '池面還很安靜 —— 投下第一個願望吧。'
+    note.style.display = shown.length ? 'none' : 'block'
   } catch (e) {
     $('#starband-wrap').style.display = 'none'
     note.textContent = '池水暫時看不清,請稍後再試。'
@@ -411,7 +481,7 @@ async function openSheet(id) {
       link.href = acc.repo_url; link.textContent = acc.repo_url
       link.target = '_blank'; link.rel = 'noopener nofollow'
       cele.appendChild(link)
-      if (acc.github_handle) cele.appendChild(el('p', 'wisher', `由 @${acc.github_handle} 實現`))
+      if (acc.github_handle) { const byp = el('p', 'wisher', '由 '); byp.appendChild(ghLink(acc.github_handle)); byp.append(' 實現'); cele.appendChild(byp) }
     }
     sheet.appendChild(cele)
   }
@@ -448,7 +518,8 @@ async function openSheet(id) {
     sheet.appendChild(el('p', 'sheet-label', `池邊的討論(${freeEchoes.length})`))
     freeEchoes.forEach((r) => {
       const rr = el('div', 'echo')
-      const body = el('div', null, r.body)
+      const body = el('div')
+      linkifyInto(body, r.body)
       tagNew(body, r.created_at)
       rr.appendChild(body)
       rr.appendChild(el('div', 'wisher', r.nickname ? `—— ${r.nickname}` : '—— 有人輕聲說'))
@@ -512,7 +583,7 @@ async function openSheet(id) {
     // 掛在這個缺口下的回答
     w.responses.filter((r) => r.question_id === n.id).forEach((r) => {
       const a = el('div', 'need-answer')
-      a.appendChild(el('span', null, r.body))
+      const ab = el('span'); linkifyInto(ab, r.body); a.appendChild(ab)
       a.appendChild(el('span', 'wisher', r.nickname ? ` —— ${r.nickname}` : ' —— 有人回答'))
       wrap.appendChild(a)
     })
@@ -530,8 +601,8 @@ async function openSheet(id) {
     const kind = { claim: '我來實現', progress: '進度', blocked: '卡關' }[u.kind] || '進度'
     const line = el('div', 'update')
     line.appendChild(el('span', 'update-kind ' + u.kind, kind))
-    line.appendChild(el('span', null, ' ' + u.body))
-    if (u.github_handle) line.appendChild(el('span', 'wisher', '  @' + u.github_handle))
+    const ub = el('span'); ub.append(' '); linkifyInto(ub, u.body); line.appendChild(ub)
+    if (u.github_handle) { const uw = el('span', 'wisher', '  '); uw.appendChild(ghLink(u.github_handle)); line.appendChild(uw) }
     tagNew(line, u.created_at)
     hv.appendChild(line)
   })
@@ -550,13 +621,13 @@ async function openSheet(id) {
     ans.appendChild(top)
     const ashot = repoPreview(a.repo_url)
     if (ashot) { const im = el('img', 'shot shot-sm'); im.src = ashot; im.alt = '實作預覽'; im.loading = 'lazy'; ans.appendChild(im) }
-    if (a.note) ans.appendChild(el('div', null, a.note))
+    if (a.note) { const nd = el('div'); linkifyInto(nd, a.note); ans.appendChild(nd) }
     const foot = el('div', 'answer-foot')
     const vb = el('button', 'vote'); vb.setAttribute('aria-label', '為這個實作版本投一枚幣')
     vb.append('投幣 ', el('span', null, String(a.votes)))
     vb.onclick = () => voteAnswer(a.id, vb)
     foot.appendChild(vb)
-    if (a.github_handle) foot.appendChild(el('span', 'wisher', '@' + a.github_handle))
+    if (a.github_handle) { const fw = el('span', 'wisher'); fw.appendChild(ghLink(a.github_handle)); foot.appendChild(fw) }
     ans.appendChild(foot)
     hv.appendChild(ans)
   })
@@ -610,14 +681,16 @@ async function tossCoinFor(id, btn) {
 }
 
 async function answerNeed(wishId, needId) {
-  const body = prompt('你的回答(會掛在這個缺口下,缺口會標為已解):')
-  if (!body || !body.trim()) return
-  const nickname = prompt('留個名字嗎?(可留空)') || undefined
+  const v = await askForm('回答這個缺口', [
+    { name: 'body', type: 'textarea', label: '你的回答(會掛在缺口下,缺口自動標已解;有連結直接貼)', required: true },
+    { name: 'nickname', label: '留個名字(可留空)' },
+  ])
+  if (!v) return
   try {
     const token = await getTurnstileToken()
     await api(`/api/wishes/${wishId}/responses`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ turnstileToken: token, body: body.trim(), nickname, kind: 'answer', questionId: needId }),
+      body: JSON.stringify({ turnstileToken: token, body: v.body, nickname: v.nickname, kind: 'answer', questionId: needId }),
     })
     watchWish(wishId)   // 成功才記關注(refreshSheet 會馬上把現況標為已看)
     await refreshSheet()
@@ -625,14 +698,16 @@ async function answerNeed(wishId, needId) {
 }
 
 async function sendEcho(wishId) {
-  const body = prompt('想對這個願望說什麼?(例:我也想要,而且希望能…)')
-  if (!body || !body.trim()) return
-  const nickname = prompt('留個名字嗎?(可留空)') || undefined
+  const v = await askForm('留言給這個願望', [
+    { name: 'body', type: 'textarea', label: '想說什麼?(例:我也想要,而且希望能…)', required: true },
+    { name: 'nickname', label: '留個名字(可留空)' },
+  ])
+  if (!v) return
   try {
     const token = await getTurnstileToken()
     await api(`/api/wishes/${wishId}/responses`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ turnstileToken: token, body: body.trim(), nickname, kind: 'metoo' }),
+      body: JSON.stringify({ turnstileToken: token, body: v.body, nickname: v.nickname, kind: 'metoo' }),
     })
     watchWish(wishId)
     await refreshSheet()
@@ -649,11 +724,14 @@ async function postWithTurnstile(path, payload, okMsg, watchId) {
   } catch (e) { alert(e.status === 429 ? '今天次數已達上限,明天再來' : '送出失敗,請稍後再試') }
 }
 async function submitAnswer(wishId) {
-  const repo = prompt('repo 網址(自己做的,或你知道的現成專案都可以 —— 幫忙指路也算實現):')
-  if (!repo || !/^https?:\/\//.test(repo.trim())) { if (repo !== null) alert('請貼有效的 http(s) 網址'); return }
-  const note = prompt('一句話說明(指路現成專案請註明「已有現成」,可留空):') || undefined
-  const handle = prompt('你的 GitHub 帳號(選填,未驗證):') || undefined
-  await postWithTurnstile(`/api/wishes/${wishId}/answers`, { repo_url: repo.trim(), note, github_handle: handle }, '收到你的實作,謝謝你讓願望往前一步', wishId)
+  const v = await askForm('交實作 / 指路現成專案', [
+    { name: 'repo', label: 'repo 網址(自己做的,或幫忙指路的現成專案)', placeholder: 'https://github.com/...', required: true,
+      check: (x) => (/^https?:\/\//.test(x) ? null : '請貼有效的 http(s) 網址') },
+    { name: 'note', type: 'textarea', label: '一句話說明(指路請註明「已有現成」,可留空)' },
+    { name: 'handle', label: '你的 GitHub 帳號(選填,成真時掛名)' },
+  ])
+  if (!v) return
+  await postWithTurnstile(`/api/wishes/${wishId}/answers`, { repo_url: v.repo, note: v.note, github_handle: v.handle }, '收到你的實作,謝謝你讓願望往前一步', wishId)
 }
 async function voteAnswer(answerId, btn) {
   try {
@@ -664,18 +742,24 @@ async function voteAnswer(answerId, btn) {
   } catch (e) { alert('投幣沒成功,請稍後再試') }
 }
 async function submitUpdate(wishId, isClaim) {
-  const kind = isClaim ? 'claim' : (prompt('這是進度還是卡關?輸入 1=進度 2=卡關', '1') === '2' ? 'blocked' : 'progress')
-  const body = prompt(isClaim ? '跟大家說一聲你要實現它(例:我來做,預計先做核心功能)' : '進度說明(例:做到 X / 卡在 Y):')
-  if (!body || !body.trim()) return
-  const handle = prompt('你的 GitHub 帳號(選填):') || undefined
-  await postWithTurnstile(`/api/wishes/${wishId}/updates`, { kind, body: body.trim(), github_handle: handle }, isClaim ? '已記下 —— 這個願望有了實現它的人' : '進度已記下,謝謝', wishId)
+  const fields = isClaim
+    ? [{ name: 'body', type: 'textarea', label: '跟大家說一聲你要實現它。建議順手開一個 repo 把連結貼在這裡 —— 其他有興趣的朋友就能直接 fork / PR 一起做', required: true },
+       { name: 'handle', label: '你的 GitHub 帳號(選填)' }]
+    : [{ name: 'kind', type: 'select', label: '這是進度還是卡關?', options: [['progress', '進度'], ['blocked', '卡關']] },
+       { name: 'body', type: 'textarea', label: '說明(例:做到 X / 卡在 Y;有連結直接貼,會自動變可點)', required: true },
+       { name: 'handle', label: '你的 GitHub 帳號(選填)' }]
+  const v = await askForm(isClaim ? '我來實現這個願望' : '回報進度 / 卡關', fields)
+  if (!v) return
+  const kind = isClaim ? 'claim' : (v.kind || 'progress')
+  await postWithTurnstile(`/api/wishes/${wishId}/updates`, { kind, body: v.body, github_handle: v.handle }, isClaim ? '已記下 —— 這個願望有了實現它的人(狀態自動進「實現中」)' : '進度已記下,謝謝', wishId)
 }
 async function submitNeed(wishId) {
-  const typeLabel = prompt('缺什麼類型:1=資訊 2=技能 3=資源', '1')
-  const type = { '1': 'info', '2': 'skill', '3': 'resource' }[String(typeLabel).trim()] || 'info'
-  const body = prompt('這個願望還缺什麼?')
-  if (!body || !body.trim()) return
-  await postWithTurnstile(`/api/wishes/${wishId}/needs`, { type, body: body.trim() }, '缺口已補上,謝謝')
+  const v = await askForm('補一個缺口', [
+    { name: 'type', type: 'select', label: '缺什麼類型', options: [['info', '缺資訊'], ['skill', '缺技能'], ['resource', '缺資源']] },
+    { name: 'body', type: 'textarea', label: '這個願望還缺什麼?', required: true },
+  ])
+  if (!v) return
+  await postWithTurnstile(`/api/wishes/${wishId}/needs`, { type: v.type || 'info', body: v.body }, '缺口已補上,謝謝')
 }
 async function downloadSpec(w) {
   try {

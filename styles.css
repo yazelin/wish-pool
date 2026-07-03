@@ -81,7 +81,9 @@ button.sort.active { background: var(--surface-3); color: var(--amber-soft); }
   display: flex; align-items: center; gap: 8px; }
 .detail-h::before { content: ''; width: 3px; height: 15px; border-radius: 2px; background: var(--amber); }
 .need { border-left: 2px solid var(--cyan-deep); padding: 6px 12px; margin: 6px 0; color: var(--muted); font-size: .92rem; background: rgba(34,211,238,.03); border-radius: 0 6px 6px 0; }
-.need.resolved { opacity: .45; text-decoration: line-through; }
+.need.resolved { border-left-color: rgba(74,222,128,.55); background: rgba(74,222,128,.04); }
+.need.resolved > div:first-child { opacity: .55; text-decoration: line-through; }
+.need.resolved .need-answer { opacity: 1; text-decoration: none; }
 .update { padding: 7px 0; font-size: .92rem; border-bottom: 1px dashed var(--border-soft); }
 .update-kind { font: 600 .7rem var(--sans); padding: 2px 9px; border-radius: 999px; background: var(--surface-3); color: var(--muted); margin-right: 4px; }
 .update-kind.claim { color: var(--amber-soft); } .update-kind.blocked { color: var(--danger); }

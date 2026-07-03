@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Env } from '../env'
-import { wishExists, createAnswer, addAnswerVote, answerExists, addUpdate, createNeed, autoBuildOnClaim } from '../lib/d1'
+import { publicWishExists, createAnswer, addAnswerVote, publicAnswerExists, addUpdate, createNeed, autoBuildOnClaim } from '../lib/d1'
 import { verifyTurnstile } from '../lib/turnstile'
 import { checkAndBump, hashIp } from '../lib/ratelimit'
 import { checkAgentBearer } from '../lib/agent-auth'
@@ -34,7 +34,7 @@ collab.post('/api/wishes/:id/answers', async (c) => {
   const id = Number(c.req.param('id'))
   const b = await c.req.json().catch(() => ({}))
   const blocked = await guard(c, b.turnstileToken, 'answer', 20); if (blocked) return blocked
-  if (!Number.isInteger(id) || !(await wishExists(c.env.DB, id))) return c.json({ error: 'not_found' }, 404)
+  if (!Number.isInteger(id) || !(await publicWishExists(c.env.DB, id))) return c.json({ error: 'not_found' }, 404)
   if (!isHttpUrl(b.repo_url)) return c.json({ error: 'bad_repo_url' }, 400)
   const aid = await createAnswer(c.env.DB, id, { repo_url: String(b.repo_url), note: b.note, github_handle: b.github_handle, agentTokenId: (c as any).get('atokId') }, Math.floor(Date.now() / 1000))
   c.executionCtx.waitUntil((async () => {
@@ -49,7 +49,7 @@ collab.post('/api/answers/:id/vote', async (c) => {
   const id = Number(c.req.param('id'))
   const b = await c.req.json().catch(() => ({}))
   const blocked = await guard(c, b.turnstileToken, 'avote', 200); if (blocked) return blocked
-  if (!Number.isInteger(id) || !(await answerExists(c.env.DB, id))) return c.json({ error: 'not_found' }, 404)
+  if (!Number.isInteger(id) || !(await publicAnswerExists(c.env.DB, id))) return c.json({ error: 'not_found' }, 404)
   const fp = await hashIp(ip(c), c.env.IP_SALT)
   return c.json(await addAnswerVote(c.env.DB, id, fp, Math.floor(Date.now() / 1000)))
 })
@@ -58,7 +58,7 @@ collab.post('/api/wishes/:id/updates', async (c) => {
   const id = Number(c.req.param('id'))
   const b = await c.req.json().catch(() => ({}))
   const blocked = await guard(c, b.turnstileToken, 'update', 30); if (blocked) return blocked
-  if (!Number.isInteger(id) || !(await wishExists(c.env.DB, id))) return c.json({ error: 'not_found' }, 404)
+  if (!Number.isInteger(id) || !(await publicWishExists(c.env.DB, id))) return c.json({ error: 'not_found' }, 404)
   const body = String(b.body ?? '').trim(); if (!body) return c.json({ error: 'body_required' }, 400)
   const uid = await addUpdate(c.env.DB, id, { kind: String(b.kind ?? 'progress'), body, github_handle: b.github_handle, agentTokenId: (c as any).get('atokId') }, Math.floor(Date.now() / 1000))
   c.executionCtx.waitUntil((async () => {
@@ -78,7 +78,7 @@ collab.post('/api/wishes/:id/needs', async (c) => {
   const id = Number(c.req.param('id'))
   const b = await c.req.json().catch(() => ({}))
   const blocked = await guard(c, b.turnstileToken, 'need', 30); if (blocked) return blocked
-  if (!Number.isInteger(id) || !(await wishExists(c.env.DB, id))) return c.json({ error: 'not_found' }, 404)
+  if (!Number.isInteger(id) || !(await publicWishExists(c.env.DB, id))) return c.json({ error: 'not_found' }, 404)
   const body = String(b.body ?? '').trim(); if (!body) return c.json({ error: 'body_required' }, 400)
   const nid = await createNeed(c.env.DB, id, String(b.type ?? 'info'), body)
   return c.json({ id: nid })

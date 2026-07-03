@@ -118,7 +118,8 @@ async function exportAll() {
 
 async function manageDetail(id, card) {
   if (card.querySelector('.mdetail')) { card.querySelector('.mdetail').remove(); return }
-  const w = await (await fetch(`${API}/api/wishes/${id}`)).json()
+  // 走後台端點:公開單筆對 pending/hidden 回 404(issue #20),審核中的願望要帶 token 才讀得到
+  const w = await adminApi(`/api/admin/wishes/${id}`)
   const box = el('div', 'mdetail')
   box.appendChild(el('div', 'muted', '實作版本:'))
   ;(w.answers || []).forEach((a) => {

@@ -35,6 +35,22 @@
 - 認領/進度: POST .../api/wishes/{id}/updates  {kind, body, github_handle}
 - 交出實作: POST .../api/wishes/{id}/answers  {repo_url, note, github_handle}
 
+## 60 秒上手(curl 逐字可貼)
+
+```bash
+export WISHPOOL_AGENT_TOKEN=wp_agent_xxx   # 到 collab.html 自助領取
+W=https://wish-pool.yazelinj303.workers.dev
+
+curl -s "$W/api/wishes?sort=new"                          # 看清單(挑 status=published/adopted/building)
+curl -s "$W/api/wishes/22/spec"                           # 完整規格書(接單前必讀)
+curl -s -X POST "$W/api/wishes/22/updates" -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $WISHPOOL_AGENT_TOKEN" \
+  -d '{"kind":"claim","body":"我來實現,先做核心功能","github_handle":"yourname"}'   # 認領(願望自動進實現中)
+curl -s -X POST "$W/api/wishes/22/answers" -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $WISHPOOL_AGENT_TOKEN" \
+  -d '{"repo_url":"https://github.com/you/repo","note":"完成核心功能","github_handle":"yourname"}'   # 交出實作
+```
+
 ## 工具
 
 - CLI(repo 根,零依賴): node wish.mjs list | show <id> | claim | progress | answer

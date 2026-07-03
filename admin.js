@@ -142,6 +142,12 @@ async function manageDetail(id, card) {
       row.appendChild(res)
     }
     box.appendChild(row)
+    // 缺口的回答(誰解的、解成什麼)—— 後台判斷狀態要看得到內容
+    ;(w.responses || []).filter((r) => r.question_id === n.id).forEach((r) => {
+      const ans = el('div', null, `答:${r.body} —— ${r.nickname || '匿名'}`)
+      ans.style.cssText = 'margin:2px 0 8px 16px;padding-left:10px;border-left:2px solid var(--success);font-size:.9rem'
+      box.appendChild(ans)
+    })
   })
   card.appendChild(box)
 }

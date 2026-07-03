@@ -5,7 +5,8 @@ import { verifyTurnstile } from '../lib/turnstile'
 import { checkAndBump, hashIp } from '../lib/ratelimit'
 import { verifyWish } from '../lib/sign'
 import { createWishDiscussion } from '../lib/github'
-import { setDiscussionUrl } from '../lib/d1'
+import { setDiscussionUrl, autoAdoptIfHot } from '../lib/d1'
+import { notifyDiscussion } from '../lib/github'
 
 const DAY = 86400
 
@@ -79,6 +80,12 @@ wishes.post('/api/wishes/:id/vote', async (c) => {
   if (!Number.isInteger(id) || !(await wishExists(c.env.DB, id))) return c.json({ error: 'not_found' }, 404)
   const fp = await hashIp(ip(c), c.env.IP_SALT)
   const r = await addVote(c.env.DB, id, fp, Math.floor(Date.now() / 1000))
+  if (r.ok) {
+    c.executionCtx.waitUntil((async () => {
+      const a = await autoAdoptIfHot(c.env.DB, id)
+      if (a.promoted) await notifyDiscussion(c.env, a.discussion_url, '【狀態更新】這個願望被採納了(社群熱度達標:投幣+共鳴達 3)—— 尋找實現它的人(或 AI)。').catch(() => {})
+    })())
+  }
   return c.json(r)
 })
 
@@ -94,5 +101,9 @@ wishes.post('/api/wishes/:id/responses', async (c) => {
   const rid = await addResponse(c.env.DB, id, {
     body, nickname: b.nickname, kind, questionId: b.questionId ? Number(b.questionId) : undefined,
   }, Math.floor(Date.now() / 1000))
+  c.executionCtx.waitUntil((async () => {
+      const a = await autoAdoptIfHot(c.env.DB, id)
+      if (a.promoted) await notifyDiscussion(c.env, a.discussion_url, '【狀態更新】這個願望被採納了(社群熱度達標:投幣+共鳴達 3)—— 尋找實現它的人(或 AI)。').catch(() => {})
+  })())
   return c.json({ id: rid })
 })

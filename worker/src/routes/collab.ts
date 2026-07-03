@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Env } from '../env'
-import { wishExists, createAnswer, addAnswerVote, answerExists, addUpdate, createNeed } from '../lib/d1'
+import { wishExists, createAnswer, addAnswerVote, answerExists, addUpdate, createNeed, autoBuildOnClaim } from '../lib/d1'
 import { verifyTurnstile } from '../lib/turnstile'
 import { checkAndBump, hashIp, sha256Hex } from '../lib/ratelimit'
 import { notifyDiscussion } from '../lib/github'
@@ -76,6 +76,10 @@ collab.post('/api/wishes/:id/updates', async (c) => {
     const kindLabel = ({ claim: '有人認領了這個願望', progress: '進度回報', blocked: '卡關回報' } as Record<string, string>)[String(b.kind ?? 'progress')] || '進度回報'
     const who = b.github_handle ? ` — @${b.github_handle}` : ''
     await notifyDiscussion(c.env, w?.discussion_url ?? null, `【池面動態】${kindLabel}:${body}${who}`).catch(() => {})
+    if (String(b.kind) === 'claim') {
+      const a = await autoBuildOnClaim(c.env.DB, id)
+      if (a.promoted) await notifyDiscussion(c.env, a.discussion_url, '【狀態更新】有人按下「我來實現」,願望自動進入「實現中」。').catch(() => {})
+    }
   })())
   return c.json({ id: uid })
 })

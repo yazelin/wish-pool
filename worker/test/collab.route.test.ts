@@ -132,3 +132,40 @@ describe('POST updates + needs', () => {
     expect(w.needs.some((n: any) => n.type === 'resource')).toBe(true)
   })
 })
+
+describe('auto status transitions', () => {
+  it('claim promotes published -> building (and not further on answer)', async () => {
+    const id = await seed()
+    await SELF.fetch(`${O}/api/wishes/${id}/updates`, {
+      method: 'POST', headers: { ...H, Authorization: 'Bearer test-agent-token' },
+      body: JSON.stringify({ kind: 'claim', body: '我來' }),
+    })
+    let w = await SELF.fetch(`${O}/api/wishes/${id}`).then((r) => r.json<any>())
+    expect(w.status).toBe('building')
+    await SELF.fetch(`${O}/api/wishes/${id}/answers`, {
+      method: 'POST', headers: { ...H, Authorization: 'Bearer test-agent-token' },
+      body: JSON.stringify({ repo_url: 'https://github.com/x/a' }),
+    })
+    w = await SELF.fetch(`${O}/api/wishes/${id}`).then((r) => r.json<any>())
+    expect(w.status).toBe('building')   // done 不自動,留站長採用
+  })
+  it('votes+echoes >= 3 promotes published -> adopted', async () => {
+    mockTurnstileOk()
+    const { createWish, addResponse } = await import('../src/lib/d1')
+    const id = await createWish(env.DB, { title: 'HOT', status: 'published', open_questions: [] }, 1)
+    await addResponse(env.DB, id, { body: 'a', kind: 'metoo' }, 2)
+    await addResponse(env.DB, id, { body: 'b', kind: 'metoo' }, 3)
+    await SELF.fetch(`${O}/api/wishes/${id}/vote`, { method: 'POST', headers: H, body: JSON.stringify({ turnstileToken: 't' }) })
+    const w = await SELF.fetch(`${O}/api/wishes/${id}`).then((r) => r.json<any>())
+    expect(w.status).toBe('adopted')
+  })
+  it('progress (non-claim) does not promote', async () => {
+    const id = await seed()
+    await SELF.fetch(`${O}/api/wishes/${id}/updates`, {
+      method: 'POST', headers: { ...H, Authorization: 'Bearer test-agent-token' },
+      body: JSON.stringify({ kind: 'progress', body: 'x' }),
+    })
+    const w = await SELF.fetch(`${O}/api/wishes/${id}`).then((r) => r.json<any>())
+    expect(w.status).toBe('published')
+  })
+})

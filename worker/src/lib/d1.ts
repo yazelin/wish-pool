@@ -205,3 +205,21 @@ export async function deleteWish(db: D1Database, id: number): Promise<void> {
 export async function setDiscussionUrl(db: D1Database, id: number, url: string): Promise<void> {
   await db.prepare('UPDATE wishes SET discussion_url = ? WHERE id = ?').bind(url, id).run()
 }
+
+// 自動狀態升級:社群熱度(幣+共鳴>=門檻)published->adopted;有人認領 published/adopted->building。
+// done 不自動 —— 成真由站長「採用」把關(池規)。
+export async function autoAdoptIfHot(db: D1Database, id: number, threshold = 3): Promise<{ promoted: boolean; discussion_url: string | null }> {
+  const row = await db.prepare(
+    `SELECT status, votes, discussion_url, (SELECT COUNT(*) FROM responses r WHERE r.wish_id = wishes.id) AS echoes FROM wishes WHERE id = ?`,
+  ).bind(id).first<{ status: string; votes: number; discussion_url: string | null; echoes: number }>()
+  if (!row || row.status !== 'published' || row.votes + row.echoes < threshold) return { promoted: false, discussion_url: null }
+  await db.prepare("UPDATE wishes SET status = 'adopted' WHERE id = ? AND status = 'published'").bind(id).run()
+  return { promoted: true, discussion_url: row.discussion_url }
+}
+export async function autoBuildOnClaim(db: D1Database, id: number): Promise<{ promoted: boolean; discussion_url: string | null }> {
+  const row = await db.prepare('SELECT status, discussion_url FROM wishes WHERE id = ?').bind(id)
+    .first<{ status: string; discussion_url: string | null }>()
+  if (!row || !['published', 'adopted'].includes(row.status)) return { promoted: false, discussion_url: null }
+  await db.prepare("UPDATE wishes SET status = 'building' WHERE id = ? AND status IN ('published','adopted')").bind(id).run()
+  return { promoted: true, discussion_url: row.discussion_url }
+}

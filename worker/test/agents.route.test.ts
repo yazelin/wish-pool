@@ -84,3 +84,40 @@ describe('agent token self-service', () => {
     expect(t.answers_count).toBe(1)
   })
 })
+
+describe('agent 代理人類參與(投幣/留言/許願)', () => {
+  async function mintToken() {
+    mockTurnstileOk()
+    const { token } = await SELF.fetch(`${O}/api/agent-tokens`, { method: 'POST', headers: H,
+      body: JSON.stringify({ turnstileToken: 't' }) }).then((r) => r.json<any>())
+    return token
+  }
+  it('agent 投幣:一 token 一票(重投 ok:false),不需 turnstile', async () => {
+    const token = await mintToken()
+    const id = await seedWish()
+    const AH = { ...H, Authorization: `Bearer ${token}` }
+    const a = await SELF.fetch(`${O}/api/wishes/${id}/vote`, { method: 'POST', headers: AH, body: '{}' }).then((r) => r.json<any>())
+    expect(a).toEqual({ ok: true, votes: 1 })
+    const b = await SELF.fetch(`${O}/api/wishes/${id}/vote`, { method: 'POST', headers: AH, body: '{}' }).then((r) => r.json<any>())
+    expect(b.ok).toBe(false)
+  })
+  it('agent 留言(代主人共鳴)且掛歸因', async () => {
+    const token = await mintToken()
+    const id = await seedWish()
+    const res = await SELF.fetch(`${O}/api/wishes/${id}/responses`, {
+      method: 'POST', headers: { ...H, Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ body: '主人也想要', nickname: '小明(由 agent 代發)', kind: 'metoo' }),
+    })
+    expect(res.status).toBe(200)
+    const row = await env.DB.prepare('SELECT agent_token_id FROM responses WHERE wish_id = ?').bind(id).first<any>()
+    expect(row.agent_token_id).toBeGreaterThan(0)
+  })
+  it('agent 許願(無簽章)-> 進 pending 待審', async () => {
+    const token = await mintToken()
+    const res = await SELF.fetch(`${O}/api/wishes`, {
+      method: 'POST', headers: { ...H, Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ wish: { title: '主人想要一個工具', nickname: '小明' } }),
+    }).then((r) => r.json<any>())
+    expect(res.status).toBe('pending')
+  })
+})

@@ -62,7 +62,7 @@ describe('公開欄位契約(隱私欄位不外洩)', () => {
   it('GET /api/wishes 每列只含白名單欄位 + 活動計數', async () => {
     const id = await seed()
     const row = await listRow(id)
-    expect(Object.keys(row).sort()).toEqual([...WISH_KEYS, 'answers_count', 'updates_count'].sort())
+    expect(Object.keys(row).sort()).toEqual([...WISH_KEYS, 'answers_count', 'updates_count', 'needs_open', 'needs_total'].sort())
   })
 
   it('GET /api/wishes/:id 頂層與巢狀項目只含白名單欄位(agent_token_id 等不外洩)', async () => {

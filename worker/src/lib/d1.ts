@@ -10,7 +10,7 @@ export type WishRow = {
   discussion_url: string | null
 }
 // 池面清單列:WishRow + 活動計數(站內通知「有新進展」徽章的資料來源,一次列表請求就能比對)
-export type WishListRow = WishRow & { answers_count: number; updates_count: number }
+export type WishListRow = WishRow & { answers_count: number; updates_count: number; needs_open: number; needs_total: number }
 export type Need = { id: number; type: string; body: string; resolved: number }
 export type Update = { id: number; kind: string; body: string; github_handle: string | null; created_at: number }
 export type Answer = { id: number; repo_url: string; note: string | null; github_handle: string | null; votes: number; status: string; created_at: number }
@@ -52,7 +52,9 @@ export async function listWishes(
     `SELECT ${WISH_PUBLIC_COLS},
        (SELECT COUNT(*) FROM responses WHERE wish_id = wishes.id) AS echoes,
        (SELECT COUNT(*) FROM answers WHERE wish_id = wishes.id AND status = 'visible') AS answers_count,
-       (SELECT COUNT(*) FROM updates WHERE wish_id = wishes.id) AS updates_count
+       (SELECT COUNT(*) FROM updates WHERE wish_id = wishes.id) AS updates_count,
+       (SELECT COUNT(*) FROM needs WHERE wish_id = wishes.id AND resolved = 0) AS needs_open,
+       (SELECT COUNT(*) FROM needs WHERE wish_id = wishes.id) AS needs_total
      FROM wishes WHERE wishes.status IN (${marks}) ORDER BY ${order} LIMIT ? OFFSET ?`,
   ).bind(...PUBLIC_STATUSES, opts.limit, opts.offset).all<WishListRow>()
   return results
@@ -93,11 +95,11 @@ export async function addVote(
 
 export async function addResponse(
   db: D1Database, wishId: number,
-  r: { body: string; nickname?: string; kind: 'answer' | 'metoo'; questionId?: number }, now: number,
+  r: { body: string; nickname?: string; kind: 'answer' | 'metoo'; questionId?: number; agentTokenId?: number }, now: number,
 ): Promise<number> {
   const res = await db.prepare(
-    'INSERT INTO responses (wish_id, question_id, body, nickname, kind, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-  ).bind(wishId, r.questionId ?? null, r.body, r.nickname ?? null, r.kind, now).run()
+    'INSERT INTO responses (wish_id, question_id, body, nickname, kind, created_at, agent_token_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+  ).bind(wishId, r.questionId ?? null, r.body, r.nickname ?? null, r.kind, now, r.agentTokenId ?? null).run()
   if (r.questionId) {
     await db.prepare('UPDATE needs SET resolved = 1 WHERE id = ? AND wish_id = ?').bind(r.questionId, wishId).run()
   }

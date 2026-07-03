@@ -7,6 +7,7 @@ import { verifyWish } from '../lib/sign'
 import { createWishDiscussion } from '../lib/github'
 import { setDiscussionUrl, autoAdoptIfHot } from '../lib/d1'
 import { notifyDiscussion } from '../lib/github'
+import { checkAgentBearer } from '../lib/agent-auth'
 
 const DAY = 86400
 
@@ -41,8 +42,12 @@ wishes.get('/api/wishes/:id', async (c) => {
 
 wishes.post('/api/wishes', async (c) => {
   const b = await c.req.json().catch(() => ({}))
-  const blocked = await guard(c, b.turnstileToken, 'submit', 5)
-  if (blocked) return blocked
+  const agent = await checkAgentBearer(c, 'atokw', 3)
+  if (agent instanceof Response) return agent
+  if (!agent) {
+    const blocked = await guard(c, b.turnstileToken, 'submit', 5)
+    if (blocked) return blocked
+  }
   const w = b.wish || {}
   const title = String(w.title ?? '').trim()
   if (!title) return c.json({ error: 'title_required' }, 400)
@@ -75,10 +80,15 @@ wishes.post('/api/wishes', async (c) => {
 wishes.post('/api/wishes/:id/vote', async (c) => {
   const id = Number(c.req.param('id'))
   const b = await c.req.json().catch(() => ({}))
-  const blocked = await guard(c, b.turnstileToken, 'vote', 100)
-  if (blocked) return blocked
+  const agent = await checkAgentBearer(c, 'atokv', 50)
+  if (agent instanceof Response) return agent
+  if (!agent) {
+    const blocked = await guard(c, b.turnstileToken, 'vote', 100)
+    if (blocked) return blocked
+  }
   if (!Number.isInteger(id) || !(await wishExists(c.env.DB, id))) return c.json({ error: 'not_found' }, 404)
-  const fp = await hashIp(ip(c), c.env.IP_SALT)
+  // agent 投幣以 token 身分去重(一 token 一票);人類照舊 IP 指紋
+  const fp = agent ? 'tok:' + ((c as any).get('atokHash') || 'owner') : await hashIp(ip(c), c.env.IP_SALT)
   const r = await addVote(c.env.DB, id, fp, Math.floor(Date.now() / 1000))
   if (r.ok) {
     c.executionCtx.waitUntil((async () => {
@@ -92,14 +102,19 @@ wishes.post('/api/wishes/:id/vote', async (c) => {
 wishes.post('/api/wishes/:id/responses', async (c) => {
   const id = Number(c.req.param('id'))
   const b = await c.req.json().catch(() => ({}))
-  const blocked = await guard(c, b.turnstileToken, 'respond', 30)
-  if (blocked) return blocked
+  const agent = await checkAgentBearer(c, 'atokr', 50)
+  if (agent instanceof Response) return agent
+  if (!agent) {
+    const blocked = await guard(c, b.turnstileToken, 'respond', 30)
+    if (blocked) return blocked
+  }
   if (!Number.isInteger(id) || !(await wishExists(c.env.DB, id))) return c.json({ error: 'not_found' }, 404)
   const body = String(b.body ?? '').trim()
   if (!body) return c.json({ error: 'body_required' }, 400)
   const kind = b.kind === 'metoo' ? 'metoo' : 'answer'
   const rid = await addResponse(c.env.DB, id, {
     body, nickname: b.nickname, kind, questionId: b.questionId ? Number(b.questionId) : undefined,
+    agentTokenId: (c as any).get('atokId') ?? undefined,
   }, Math.floor(Date.now() / 1000))
   c.executionCtx.waitUntil((async () => {
       const a = await autoAdoptIfHot(c.env.DB, id)

@@ -338,11 +338,14 @@ async function checkWatched() {
       if (isFresh(watch[id], activityTotalRow(row), row.status)) freshIds.add(id)
       return
     }
+    // 自己許的 pending 願望:公開單筆端點看不到(404,issue #20),只用清單比對 ——
+    // 上牆後會出現在清單、狀態變化亮「有新進展」;沒上牆就靜靜留著,不打請求也不清記錄
+    if (watch[id].s === 'pending') return
     if (fallbackBudget-- <= 0) return
     try {
       const w = await api(`/api/wishes/${id}`)
-      if (w.status !== 'hidden' && isFresh(watch[id], activityTotal(w), w.status)) freshIds.add(id)
-    } catch (e) { if (e.status === 404) { delete watch[id]; setWatch(watch) } }
+      if (isFresh(watch[id], activityTotal(w), w.status)) freshIds.add(id)
+    } catch (e) { if (e.status === 404) { delete watch[id]; setWatch(watch) } }   // 被刪/被下架 → 清記錄
   }))
   document.getElementById('watch-note')?.remove()
   if (freshIds.size) {

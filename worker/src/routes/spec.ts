@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Env } from '../env'
-import { getWish } from '../lib/d1'
+import { getWish, PUBLIC_STATUSES } from '../lib/d1'
 
 // 完整規格書(markdown):站內全部資料 + GitHub 討論串內容(有 GH_PAT 才拿得到)。
 // 單一事實來源 —— 前端「下載規格」與 agent 都吃這個端點。
@@ -30,7 +30,7 @@ spec.get('/api/wishes/:id/spec', async (c) => {
   const id = Number(c.req.param('id'))
   if (!Number.isInteger(id)) return c.text('not found', 404)
   const w = await getWish(c.env.DB, id)
-  if (!w || !['published', 'adopted', 'building', 'done'].includes(w.status)) return c.text('not found', 404)
+  if (!w || !PUBLIC_STATUSES.includes(w.status)) return c.text('not found', 404)
   const nick = (n: string | null) => (n ? `(${n})` : '')
   const L: string[] = [
     `# 願望 #${w.id}:${w.title}`,

@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Env } from '../env'
-import { createWish, listWishes, getWish, wishExists, addVote, addResponse } from '../lib/d1'
+import { createWish, listWishes, getWish, publicWishExists, addVote, addResponse, PUBLIC_STATUSES } from '../lib/d1'
 import { verifyTurnstile } from '../lib/turnstile'
 import { checkAndBump, hashIp } from '../lib/ratelimit'
 import { verifyWish } from '../lib/sign'
@@ -36,7 +36,8 @@ wishes.get('/api/wishes/:id', async (c) => {
   const id = Number(c.req.param('id'))
   if (!Number.isInteger(id)) return c.json({ error: 'not_found' }, 404)
   const w = await getWish(c.env.DB, id)
-  if (!w) return c.json({ error: 'not_found' }, 404)
+  // 非公開狀態(pending/hidden)回 404,與清單/spec 同口徑;不用 403 免得洩漏「存在性」(issue #20)
+  if (!w || !PUBLIC_STATUSES.includes(w.status)) return c.json({ error: 'not_found' }, 404)
   return c.json(w)
 })
 
@@ -86,7 +87,7 @@ wishes.post('/api/wishes/:id/vote', async (c) => {
     const blocked = await guard(c, b.turnstileToken, 'vote', 100)
     if (blocked) return blocked
   }
-  if (!Number.isInteger(id) || !(await wishExists(c.env.DB, id))) return c.json({ error: 'not_found' }, 404)
+  if (!Number.isInteger(id) || !(await publicWishExists(c.env.DB, id))) return c.json({ error: 'not_found' }, 404)
   // agent 投幣以 token 身分去重(一 token 一票);人類照舊 IP 指紋
   const fp = agent ? 'tok:' + ((c as any).get('atokHash') || 'owner') : await hashIp(ip(c), c.env.IP_SALT)
   const r = await addVote(c.env.DB, id, fp, Math.floor(Date.now() / 1000))
@@ -108,7 +109,7 @@ wishes.post('/api/wishes/:id/responses', async (c) => {
     const blocked = await guard(c, b.turnstileToken, 'respond', 30)
     if (blocked) return blocked
   }
-  if (!Number.isInteger(id) || !(await wishExists(c.env.DB, id))) return c.json({ error: 'not_found' }, 404)
+  if (!Number.isInteger(id) || !(await publicWishExists(c.env.DB, id))) return c.json({ error: 'not_found' }, 404)
   const body = String(b.body ?? '').trim()
   if (!body) return c.json({ error: 'body_required' }, 400)
   const kind = b.kind === 'metoo' ? 'metoo' : 'answer'

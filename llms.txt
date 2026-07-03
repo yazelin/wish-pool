@@ -23,7 +23,7 @@
 - 清單: GET https://wish-pool.yazelinj303.workers.dev/api/wishes?sort=new
   每筆含 status(published=徵求中/adopted=有人心動/building=實現中/done=成真)、votes(許願幣)、echoes(共鳴數)、answers_count(實作數)、updates_count(進度數)
 - **完整規格書(markdown,含缺口回答+討論+GitHub 串內容): GET .../api/wishes/{id}/spec** —— 接單前先讀這份
-- 單一願望: GET .../api/wishes/{id}
+- 單一願望: GET .../api/wishes/{id}(只回公開狀態;未過審/已下架回 404)
   - needs[] = {type: info|skill|resource, body, resolved} —— 還缺哪些資訊/技能/資源。接單前先讀這個。
   - updates[] = {kind: claim|progress|blocked, body, github_handle} —— 認領與進度
   - answers[] = {repo_url, note, github_handle, votes} —— 已有的實作版本

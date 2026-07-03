@@ -21,7 +21,8 @@ export type Wish = WishRow & {
   responses: { id: number; question_id: number | null; body: string; nickname: string | null; kind: string; created_at: number }[]
 }
 
-const PUBLIC_STATUSES = ['published', 'adopted', 'building', 'done']
+// 公開狀態白名單:清單、單筆、spec、公開寫入端點都用同一套口徑(issue #20)
+export const PUBLIC_STATUSES = ['published', 'adopted', 'building', 'done']
 
 // 公開端點的 wishes 欄位白名單:新增欄位(例如未來的通知 email)預設「不」外洩,
 // 要公開必須進這串名單並過 notify.route.test 的欄位契約測試。
@@ -70,8 +71,23 @@ export async function getWish(db: D1Database, id: number): Promise<Wish | null> 
   return { ...row, needs: q.results, updates: u.results, answers: a.results, responses: r.results }
 }
 
-export async function wishExists(db: D1Database, id: number): Promise<boolean> {
-  const row = await db.prepare('SELECT 1 AS x FROM wishes WHERE id = ?').bind(id).first<{ x: number }>()
+// 公開端點用:非公開狀態(pending/hidden)視同不存在 → 404,不洩漏存在性。
+// (原不分狀態的 wishExists 已移除,免得公開 route 誤用重開這個洞;後台讀單筆走 getWish。)
+// 寫入端點也用這個,免得「對 hidden id 投票回 200」變成存在性探針。
+export async function publicWishExists(db: D1Database, id: number): Promise<boolean> {
+  const marks = PUBLIC_STATUSES.map(() => '?').join(',')
+  const row = await db.prepare(`SELECT 1 AS x FROM wishes WHERE id = ? AND status IN (${marks})`)
+    .bind(id, ...PUBLIC_STATUSES).first<{ x: number }>()
+  return !!row
+}
+
+// 公開投票端點用:answer 要 visible 且所屬願望是公開狀態(admin 端仍走 answerExists 不受限)
+export async function publicAnswerExists(db: D1Database, id: number): Promise<boolean> {
+  const marks = PUBLIC_STATUSES.map(() => '?').join(',')
+  const row = await db.prepare(
+    `SELECT 1 AS x FROM answers a JOIN wishes w ON w.id = a.wish_id
+     WHERE a.id = ? AND a.status = 'visible' AND w.status IN (${marks})`,
+  ).bind(id, ...PUBLIC_STATUSES).first<{ x: number }>()
   return !!row
 }
 

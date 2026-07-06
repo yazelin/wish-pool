@@ -93,6 +93,30 @@ describe('POST /api/wishes', () => {
     })
     expect(res.status).toBe(400)
   })
+
+  it('difficulty and gaps are stored on submit; tampered difficulty falls to pending', async () => {
+    mockTurnstileOk()
+    const { signWish } = await import('../src/lib/sign')
+    const wish = { title: '大型遊戲願望', problem: 'p', current: 'c', desired: 'd', who: 'w', difficulty: '大' }
+    const sig = await signWish('test-sign-secret', wish, 'ok', Math.floor(Date.now() / 1000) + 3600)
+    // 正常送出:published,difficulty 與 gaps 都落庫
+    const res = await SELF.fetch(`${O}/api/wishes`, {
+      method: 'POST', headers: H,
+      body: JSON.stringify({ turnstileToken: 't', wish, verdict: 'ok', sig, gaps: [{ type: 'resource', body: '素材需原創' }] }),
+    })
+    const j = await res.json() as any
+    expect(j.status).toBe('published')
+    const got = await (await SELF.fetch(`${O}/api/wishes/${j.id}`)).json() as any
+    expect(got.difficulty).toBe('大')
+    expect(got.needs.some((n: any) => n.type === 'resource' && n.body === '素材需原創')).toBe(true)
+
+    // 竄改 difficulty:驗簽失敗 -> pending
+    const res2 = await SELF.fetch(`${O}/api/wishes`, {
+      method: 'POST', headers: H,
+      body: JSON.stringify({ turnstileToken: 't', wish: { ...wish, difficulty: '小' }, verdict: 'ok', sig }),
+    })
+    expect(((await res2.json()) as any).status).toBe('pending')
+  })
 })
 
 describe('GET /api/wishes', () => {

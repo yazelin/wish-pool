@@ -1,6 +1,8 @@
 export type NewWish = {
   title: string; problem?: string; current?: string; desired?: string
   who?: string; nickname?: string; status: string; open_questions: string[]
+  difficulty?: string
+  gaps?: { type: string; body: string }[]
 }
 export type WishRow = {
   id: number; title: string; problem: string | null; current: string | null
@@ -8,6 +10,7 @@ export type WishRow = {
   status: string; votes: number; created_at: number; accepted_answer_id: number | null
   echoes: number
   discussion_url: string | null
+  difficulty: string | null
 }
 // 池面清單列:WishRow + 活動計數(站內通知「有新進展」徽章的資料來源,一次列表請求就能比對)
 export type WishListRow = WishRow & { answers_count: number; updates_count: number; needs_open: number; needs_total: number }
@@ -26,19 +29,24 @@ export const PUBLIC_STATUSES = ['published', 'adopted', 'building', 'done']
 
 // 公開端點的 wishes 欄位白名單:新增欄位(例如未來的通知 email)預設「不」外洩,
 // 要公開必須進這串名單並過 notify.route.test 的欄位契約測試。
-const WISH_PUBLIC_COLS = 'id, title, problem, current, desired, who, nickname, status, votes, created_at, accepted_answer_id, discussion_url'
+const WISH_PUBLIC_COLS = 'id, title, problem, current, desired, who, nickname, status, votes, created_at, accepted_answer_id, discussion_url, difficulty'
 
 export async function createWish(db: D1Database, w: NewWish, now: number): Promise<number> {
   const res = await db.prepare(
-    `INSERT INTO wishes (title, problem, current, desired, who, nickname, status, votes, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)`,
+    `INSERT INTO wishes (title, problem, current, desired, who, nickname, status, votes, created_at, difficulty)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
   ).bind(w.title, w.problem ?? null, w.current ?? null, w.desired ?? null,
-         w.who ?? null, w.nickname ?? null, w.status, now).run()
+         w.who ?? null, w.nickname ?? null, w.status, now, w.difficulty || null).run()
   const id = res.meta.last_row_id as number
   for (const q of w.open_questions) {
     if (!q?.trim()) continue
     await db.prepare('INSERT INTO open_questions (wish_id, question) VALUES (?, ?)').bind(id, q).run()
     await db.prepare("INSERT INTO needs (wish_id, type, body) VALUES (?, 'info', ?)").bind(id, q).run()
+  }
+  for (const g of w.gaps ?? []) {
+    if (!g || typeof g.body !== 'string' || !g.body.trim()) continue
+    const t = ['info', 'skill', 'resource'].includes(g.type) ? g.type : 'info'
+    await db.prepare('INSERT INTO needs (wish_id, type, body) VALUES (?, ?, ?)').bind(id, t, g.body.trim()).run()
   }
   return id
 }

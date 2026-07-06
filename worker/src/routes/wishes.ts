@@ -4,6 +4,7 @@ import { createWish, listWishes, getWish, publicWishExists, addVote, addResponse
 import { verifyTurnstile } from '../lib/turnstile'
 import { checkAndBump, hashIp } from '../lib/ratelimit'
 import { verifyWish } from '../lib/sign'
+import { DIFFICULTIES } from '../lib/llm'
 import { createWishDiscussion } from '../lib/github'
 import { setDiscussionUrl, autoAdoptIfHot } from '../lib/d1'
 import { notifyDiscussion } from '../lib/github'
@@ -52,13 +53,14 @@ wishes.post('/api/wishes', async (c) => {
   const w = b.wish || {}
   const title = String(w.title ?? '').trim()
   if (!title) return c.json({ error: 'title_required' }, 400)
+  const difficulty = DIFFICULTIES.includes(w.difficulty) ? String(w.difficulty) : undefined
   // verdict:'ok' 只有在後端驗簽(/api/refine 簽的 sig,且內容未被改過)成立時才自動上牆;
   // 否則(偽造、改過、過期、純表單無 sig)一律進 pending 等 owner 審。
   let status = 'pending'
   if (b.verdict === 'ok') {
     const valid = await verifyWish(
       c.env.WISH_SIGN_SECRET,
-      { title, problem: w.problem, current: w.current, desired: w.desired, who: w.who },
+      { title, problem: w.problem, current: w.current, desired: w.desired, who: w.who, difficulty },
       'ok', b.sig, Math.floor(Date.now() / 1000),
     )
     if (valid) status = 'published'
@@ -66,7 +68,13 @@ wishes.post('/api/wishes', async (c) => {
   const id = await createWish(c.env.DB, {
     title,
     problem: w.problem, current: w.current, desired: w.desired, who: w.who, nickname: w.nickname,
-    status, open_questions: Array.isArray(b.open_questions) ? b.open_questions : [],
+    status,
+    // ponytail: gaps/open_questions 是使用者可控輸入,沒上限就逐筆 INSERT needs 會被灌爆;各截 20 筆、每筆截 500 字
+    open_questions: Array.isArray(b.open_questions) ? b.open_questions.slice(0, 20).map((q: any) => String(q).slice(0, 500)) : [],
+    difficulty,
+    gaps: Array.isArray(b.gaps)
+      ? b.gaps.slice(0, 20).map((g: any) => ({ type: g?.type, body: String(g?.body ?? '').slice(0, 500) }))
+      : [],
   }, Math.floor(Date.now() / 1000))
   if (status === 'published') {
     c.executionCtx.waitUntil(

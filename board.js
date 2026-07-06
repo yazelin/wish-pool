@@ -26,7 +26,7 @@ async function load() {
       c.href = `index.html#wish-${w.id}`
       c.appendChild(el('div', 'board-card-title', w.title))
       const meta = el('div', 'muted')
-      meta.textContent = `▲ ${w.votes}` + (w.nickname ? ` · ${w.nickname}` : '')
+      meta.textContent = (w.difficulty ? `規模:${w.difficulty} · ` : '') + `▲ ${w.votes}` + (w.nickname ? ` · ${w.nickname}` : '')
       c.appendChild(meta)
       section.appendChild(c)
     })

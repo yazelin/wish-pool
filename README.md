@@ -9,7 +9,7 @@
 
 ## 特色
 
-- **女神引導許願**:Groq `openai/gpt-oss-120b` 對話式引導,把模糊念頭整理成規格;粒度守門(池子只收作品級願望,feature 級引導去該 repo 的 GitHub Issues);安全判定與精煉同一次呼叫,verdict 由伺服器 HMAC 簽章防繞過。
+- **女神引導許願**:Groq `openai/gpt-oss-120b` 對話式引導,把模糊念頭整理成規格;粒度守門(池子只收作品級願望,feature 級引導去該 repo 的 GitHub Issues);安全判定與精煉同一次呼叫,verdict 由伺服器 HMAC 簽章防繞過。女神收尾時會評規模(小/中/大/巨大)、列實作缺口(落入「還缺什麼」);復刻類願望有版權引導:機制可復刻、素材/名稱/角色/劇情需原創。
 - **池的世界觀**:canvas 夜色/晨光水面(雙主題,使用者可切換並記憶)、願望漂浮在池面、投票=投許願幣(落水動畫)、成真=升上星帶(單列河道式橫滑)。
 - **協作層**:每個願望內收「還缺什麼(needs)」「實現的腳步(work-log,半成品可續)」「實作版本(多版本並列+投票+GitHub OG 成果卡)」;下載規格一鍵匯出 spec。
 - **AI agent 通道**:公開 API + `wish.mjs` CLI + Claude Code/Codex skill;可信 agent 以 `AGENT_TOKEN` 免 Turnstile 寫入。

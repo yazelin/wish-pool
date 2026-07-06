@@ -277,6 +277,7 @@ function renderLantern(w) {
   card.setAttribute('role', 'button')
   card.setAttribute('aria-label', `打開願望:${w.title}`)
   if (w.status !== 'published') card.appendChild(el('span', 'phrase ' + w.status, PHRASE[w.status] || ''))
+  if (w.difficulty) card.appendChild(el('span', 'phrase', `規模:${w.difficulty}`))
   card.appendChild(el('h3', null, w.title))
   const foot = el('div', 'lantern-foot')
   foot.appendChild(el('span', 'coins', `已有 ${w.votes} 枚許願幣`))
@@ -467,6 +468,7 @@ async function openSheet(id) {
 
   const head = el('div', 'sheet-head')
   head.appendChild(el('span', 'phrase ' + w.status, PHRASE[w.status] || ''))
+  if (w.difficulty) head.appendChild(el('span', 'phrase', `規模:${w.difficulty}`))
   const x = el('button', 'sheet-close', '關')
   x.setAttribute('aria-label', '關閉')
   x.onclick = closeSheet
@@ -892,6 +894,10 @@ function renderPreview(r) {
     const oq = el('div', 'need', '還沒想清楚的(投進池裡後,大家可以幫你想):' + r.open_questions.join('; '))
     form.appendChild(oq)
   }
+  if (r.difficulty) form.appendChild(el('div', 'need', `女神評的規模:${r.difficulty}`))
+  if (r.gaps?.length) {
+    form.appendChild(el('div', 'need', '女神列的實作缺口(會一起放進「還缺什麼」):' + r.gaps.map((g) => g.body).join('; ')))
+  }
   const submit = el('button', 'primary', '投進池裡'); submit.style.marginTop = '8px'
   submit.onclick = () => submitWish(form, r, submit)
   form.appendChild(submit)
@@ -910,8 +916,9 @@ async function submitWish(form, r, submit) {
   if (!title) { alert('至少說說這個作品是什麼'); return }
   if (submit) submit.disabled = true   // 防連點造成重複送出
   const payload = {
-    wish: { title, problem: get('problem'), current: get('current'), desired: get('desired'), who: get('who'), nickname: get('nickname') || undefined },
+    wish: { title, problem: get('problem'), current: get('current'), desired: get('desired'), who: get('who'), nickname: get('nickname') || undefined, difficulty: r.difficulty || undefined },
     open_questions: r.open_questions || [],
+    gaps: r.gaps || [],
     verdict: r.verdict, // 只有 AI final 且 ok 才會直接入池;純表單(無 verdict)進審核
     sig: r.sig,         // /api/refine 對 ok 內容的簽章;後端驗簽通過才 published,改過/偽造 -> pending
   }

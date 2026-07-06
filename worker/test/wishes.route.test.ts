@@ -117,6 +117,27 @@ describe('POST /api/wishes', () => {
     })
     expect(((await res2.json()) as any).status).toBe('pending')
   })
+
+  it('gaps and open_questions are each capped at 20 items, 500 chars per item', async () => {
+    mockTurnstileOk()
+    const { getWish } = await import('../src/lib/d1')
+    const gaps = Array.from({ length: 25 }, (_, i) => ({ type: 'resource', body: i === 0 ? 'x'.repeat(600) : `g${i}` }))
+    const open_questions = Array.from({ length: 25 }, (_, i) => (i === 0 ? 'y'.repeat(600) : `q${i}`))
+    const res = await SELF.fetch(`${O}/api/wishes`, {
+      method: 'POST', headers: H,
+      body: JSON.stringify({ turnstileToken: 't', wish: { title: '大量缺口願望' }, gaps, open_questions }),
+    })
+    const j = (await res.json()) as any
+    // pending 狀態不會過公開狀態白名單,直接查 DB 驗證落庫結果(與 spec/GET 端點的 404 口徑無關)
+    const got = (await getWish(env.DB, j.id)) as any
+    // open_questions(type info) 與 gaps(type resource) 各自落 needs,各截 20 筆 -> 共 40 筆
+    expect(got.needs.length).toBe(40)
+    expect(got.needs.filter((n: any) => n.type === 'info').length).toBe(20)
+    expect(got.needs.filter((n: any) => n.type === 'resource').length).toBe(20)
+    for (const n of got.needs) expect(n.body.length).toBeLessThanOrEqual(500)
+    expect(got.needs.find((n: any) => n.type === 'resource').body.length).toBe(500)
+    expect(got.needs.find((n: any) => n.type === 'info').body.length).toBe(500)
+  })
 })
 
 describe('GET /api/wishes', () => {
@@ -203,5 +224,16 @@ describe('GET /api/wishes/:id/spec', () => {
     const { createWish } = await import('../src/lib/d1')
     const id = await createWish(env.DB, { title: 'P', status: 'pending', open_questions: [] }, 1)
     expect((await SELF.fetch(`${O}/api/wishes/${id}/spec`)).status).toBe(404)
+  })
+
+  it('includes 規模(difficulty) in header when set, omits it when absent', async () => {
+    const { createWish } = await import('../src/lib/d1')
+    const withDiff = await createWish(env.DB, { title: 'D', status: 'published', open_questions: [], difficulty: '大' }, 1)
+    const t1 = await (await SELF.fetch(`${O}/api/wishes/${withDiff}/spec`)).text()
+    expect(t1).toContain('規模:大')
+
+    const noDiff = await createWish(env.DB, { title: 'ND', status: 'published', open_questions: [] }, 1)
+    const t2 = await (await SELF.fetch(`${O}/api/wishes/${noDiff}/spec`)).text()
+    expect(t2).not.toContain('規模:')
   })
 })

@@ -36,6 +36,7 @@ spec.get('/api/wishes/:id/spec', async (c) => {
     `# 願望 #${w.id}:${w.title}`,
     '',
     `- 狀態:${PHRASE[w.status] || w.status}${w.nickname ? ` · 許願者:${w.nickname}` : ''}`,
+    ...(w.difficulty ? [`- 規模:${w.difficulty}`] : []),
     `- 社群訊號:許願幣 ${w.votes} · 共鳴/留言 ${w.responses.length}`,
     `- 想解決:${w.problem || ''}`,
     `- 現況:${w.current || ''}`,

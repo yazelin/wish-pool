@@ -77,6 +77,16 @@ final JSON 新增:
 確認 → 產一份 UPDATE SQL,`wrangler d1 execute --remote` 執行。
 不進 worker 程式碼。
 
+復刻類舊願望額外處理(讓原許願人知道新標準):
+
+- needs 補兩條缺口:「全套素材需原創(原作素材/名稱/角色/劇情不可
+  使用)」(resource)、「玩法機制可復刻,題材建議改為原創」(info),
+  同一份 SQL 一起 INSERT。
+- 有 discussion_url 的,用 gh CLI 在該 GitHub Discussion 留一則說明:
+  池子新增了復刻類願望的版權守則,機制可復刻、素材/名稱/角色/劇情
+  需原創,缺口已補列在願望頁。
+- 哪些算復刻類、留言文案,同樣先給 yazelin 過目再執行。
+
 ## 不做的
 
 - 不做獨立「版權風險」need 型別(resource/info 夠用)。

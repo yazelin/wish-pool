@@ -47,13 +47,22 @@ spec.get('/api/wishes/:id/spec', async (c) => {
     ...(w.needs.length
       ? w.needs.flatMap((n) => [
           `- [${n.resolved ? 'x' : ' '}] (${n.type}) ${n.body}`,
-          ...w.responses.filter((r) => r.question_id === n.id).map((r) => `  - 答:${r.body}${nick(r.nickname)}`),
+          ...w.responses.filter((r) => r.question_id === n.id && !r.parent_id).flatMap((r) => [
+            `  - 答:${r.body}${nick(r.nickname)}${r.is_solution ? ' [許願者標記已解答]' : ''}`,
+            ...w.responses.filter((x) => x.parent_id === r.id).map((x) => `    - 回覆:${x.body}${nick(x.nickname)}`),
+          ]),
         ])
       : ['(無)']),
     '',
   ]
-  const free = w.responses.filter((r) => !r.question_id)
-  if (free.length) L.push('## 池邊的討論(需求補充)', ...free.map((r) => `- ${r.body}${nick(r.nickname)}`), '')
+  // 巢狀回覆(issue #7):自由留言只列頂層(parent_id 為空),回覆縮排掛在各自的頂層留言下,避免重複列出。
+  const free = w.responses.filter((r) => !r.question_id && !r.parent_id)
+  if (free.length) {
+    L.push('## 池邊的討論(需求補充)', ...free.flatMap((r) => [
+      `- ${r.body}${nick(r.nickname)}${r.is_solution ? ' [許願者標記已解答]' : ''}`,
+      ...w.responses.filter((x) => x.parent_id === r.id).map((x) => `  - 回覆:${x.body}${nick(x.nickname)}`),
+    ]), '')
+  }
   if (w.updates.length) L.push('## 實現的腳步', ...w.updates.map((u) => `- ${u.kind}: ${u.body}${u.github_handle ? ' @' + u.github_handle : ''}`), '')
   if (w.answers.length) L.push('## 已有的實作版本(別重造輪子)', ...w.answers.map((a) => `- ${a.repo_url}${a.note ? ` — ${a.note}` : ''}${a.github_handle ? ' @' + a.github_handle : ''}${a.id === w.accepted_answer_id ? ' [已採用]' : ''}`), '')
   const th = await threadComments(c.env, w.discussion_url).catch(() => [])

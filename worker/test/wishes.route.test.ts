@@ -204,6 +204,83 @@ describe('POST vote + responses', () => {
   })
 })
 
+describe('巢狀回覆(issue #7)', () => {
+  it('用 parentId 回覆一則留言,回應帶純數字 id;GET 看得到 parent_id', async () => {
+    mockTurnstileOk()
+    const id = await seed('published')
+    const rootRes = await SELF.fetch(`${O}/api/wishes/${id}/responses`, {
+      method: 'POST', headers: H, body: JSON.stringify({ turnstileToken: 't', body: '我也想要', kind: 'metoo' }),
+    })
+    const rootId = (await rootRes.json<{ id: number }>()).id
+    expect(typeof rootId).toBe('number')
+    const replyRes = await SELF.fetch(`${O}/api/wishes/${id}/responses`, {
+      method: 'POST', headers: H,
+      body: JSON.stringify({ turnstileToken: 't', body: '同感,而且希望能匯出', kind: 'answer', parentId: rootId }),
+    })
+    expect(replyRes.status).toBe(200)
+    const replyId = (await replyRes.json<{ id: number }>()).id
+    expect(typeof replyId).toBe('number')
+    const w = await SELF.fetch(`${O}/api/wishes/${id}`).then((r) => r.json<any>())
+    const reply = w.responses.find((r: any) => r.id === replyId)
+    expect(reply.parent_id).toBe(rootId)
+  })
+
+  it('回覆一則回覆,攤平掛回同一條頂層串', async () => {
+    mockTurnstileOk()
+    const id = await seed('published')
+    const post = (body: any) => SELF.fetch(`${O}/api/wishes/${id}/responses`, {
+      method: 'POST', headers: H, body: JSON.stringify({ turnstileToken: 't', ...body }),
+    }).then((r) => r.json<{ id: number }>())
+    const root = await post({ body: 'root', kind: 'metoo' })
+    const reply1 = await post({ body: 'reply1', kind: 'answer', parentId: root.id })
+    const reply2 = await post({ body: 'reply2', kind: 'answer', parentId: reply1.id })
+    const w = await SELF.fetch(`${O}/api/wishes/${id}`).then((r) => r.json<any>())
+    expect(w.responses.find((r: any) => r.id === reply2.id).parent_id).toBe(root.id)
+  })
+})
+
+describe('POST /api/responses/:id/solve(issue #7 — 許願者標記已解答)', () => {
+  it('標記後 is_solution 變 1,可再標回 0', async () => {
+    mockTurnstileOk()
+    const id = await seed('published')
+    const { id: rid } = await SELF.fetch(`${O}/api/wishes/${id}/responses`, {
+      method: 'POST', headers: H, body: JSON.stringify({ turnstileToken: 't', body: '答案', kind: 'answer' }),
+    }).then((r) => r.json<{ id: number }>())
+    const solve = await SELF.fetch(`${O}/api/responses/${rid}/solve`, {
+      method: 'POST', headers: H, body: JSON.stringify({ turnstileToken: 't' }),
+    })
+    expect(solve.status).toBe(200)
+    let w = await SELF.fetch(`${O}/api/wishes/${id}`).then((r) => r.json<any>())
+    expect(w.responses.find((r: any) => r.id === rid).is_solution).toBe(1)
+
+    const unsolve = await SELF.fetch(`${O}/api/responses/${rid}/solve`, {
+      method: 'POST', headers: H, body: JSON.stringify({ turnstileToken: 't', value: false }),
+    })
+    expect(unsolve.status).toBe(200)
+    w = await SELF.fetch(`${O}/api/wishes/${id}`).then((r) => r.json<any>())
+    expect(w.responses.find((r: any) => r.id === rid).is_solution).toBe(0)
+  })
+
+  it('不存在的 response id -> 404', async () => {
+    mockTurnstileOk()
+    const res = await SELF.fetch(`${O}/api/responses/999999/solve`, {
+      method: 'POST', headers: H, body: JSON.stringify({ turnstileToken: 't' }),
+    })
+    expect(res.status).toBe(404)
+  })
+
+  it('願望非公開狀態(pending)時一律 404,不洩漏存在性', async () => {
+    mockTurnstileOk()
+    const id = await seed('pending')
+    const { addResponse } = await import('../src/lib/d1')
+    const r = await addResponse(env.DB, id, { body: 'x', kind: 'answer' }, 2)
+    const res = await SELF.fetch(`${O}/api/responses/${r.id}/solve`, {
+      method: 'POST', headers: H, body: JSON.stringify({ turnstileToken: 't' }),
+    })
+    expect(res.status).toBe(404)
+  })
+})
+
 describe('GET /api/wishes/:id/spec', () => {
   it('compiles complete markdown spec (needs+answers to needs+discussion+answers)', async () => {
     const { createWish, createNeed, addResponse, addUpdate, createAnswer } = await import('../src/lib/d1')

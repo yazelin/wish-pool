@@ -43,4 +43,35 @@ describe('parseRefineResponse', () => {
     const blank = parseRefineResponse(JSON.stringify({ mode: 'final', title: '   ' }))
     expect(blank.mode).toBe('ask')
   })
+
+  it('parses difficulty and gaps with whitelists', () => {
+    const r = parseRefineResponse(JSON.stringify({
+      mode: 'final', title: 'X', open_questions: [], verdict: 'ok', verdict_reason: '',
+      difficulty: '大',
+      gaps: [
+        { type: 'resource', body: '全套美術素材需原創' },
+        { type: 'weird', body: '不明型別落為 info' },
+        { type: 'skill', body: '   ' },          // 空 body 要被丟掉
+        'not-an-object',                          // 非物件要被丟掉
+      ],
+    }))
+    expect(r.mode).toBe('final')
+    if (r.mode === 'final') {
+      expect(r.difficulty).toBe('大')
+      expect(r.gaps).toEqual([
+        { type: 'resource', body: '全套美術素材需原創' },
+        { type: 'info', body: '不明型別落為 info' },
+      ])
+    }
+  })
+
+  it('difficulty outside whitelist coerced to empty; missing gaps -> []', () => {
+    const r = parseRefineResponse(JSON.stringify({
+      mode: 'final', title: 'X', open_questions: [], verdict: 'ok', verdict_reason: '', difficulty: 'XL',
+    }))
+    if (r.mode === 'final') {
+      expect(r.difficulty).toBe('')
+      expect(r.gaps).toEqual([])
+    }
+  })
 })

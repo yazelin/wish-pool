@@ -68,9 +68,13 @@ wishes.post('/api/wishes', async (c) => {
   const id = await createWish(c.env.DB, {
     title,
     problem: w.problem, current: w.current, desired: w.desired, who: w.who, nickname: w.nickname,
-    status, open_questions: Array.isArray(b.open_questions) ? b.open_questions : [],
+    status,
+    // ponytail: gaps/open_questions 是使用者可控輸入,沒上限就逐筆 INSERT needs 會被灌爆;各截 20 筆、每筆截 500 字
+    open_questions: Array.isArray(b.open_questions) ? b.open_questions.slice(0, 20).map((q: any) => String(q).slice(0, 500)) : [],
     difficulty,
-    gaps: Array.isArray(b.gaps) ? b.gaps : [],
+    gaps: Array.isArray(b.gaps)
+      ? b.gaps.slice(0, 20).map((g: any) => ({ type: g?.type, body: String(g?.body ?? '').slice(0, 500) }))
+      : [],
   }, Math.floor(Date.now() / 1000))
   if (status === 'published') {
     c.executionCtx.waitUntil(

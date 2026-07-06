@@ -17,11 +17,15 @@ export type WishListRow = WishRow & { answers_count: number; updates_count: numb
 export type Need = { id: number; type: string; body: string; resolved: number }
 export type Update = { id: number; kind: string; body: string; github_handle: string | null; created_at: number }
 export type Answer = { id: number; repo_url: string; note: string | null; github_handle: string | null; votes: number; status: string; created_at: number }
+export type ResponseRow = {
+  id: number; question_id: number | null; parent_id: number | null; is_solution: number
+  body: string; nickname: string | null; kind: string; created_at: number
+}
 export type Wish = WishRow & {
   needs: Need[]
   updates: Update[]
   answers: Answer[]
-  responses: { id: number; question_id: number | null; body: string; nickname: string | null; kind: string; created_at: number }[]
+  responses: ResponseRow[]
 }
 
 // 公開狀態白名單:清單、單筆、spec、公開寫入端點都用同一套口徑(issue #20)
@@ -75,7 +79,7 @@ export async function getWish(db: D1Database, id: number): Promise<Wish | null> 
   const q = await db.prepare('SELECT id, type, body, resolved FROM needs WHERE wish_id = ? ORDER BY id').bind(id).all<Need>()
   const u = await db.prepare('SELECT id, kind, body, github_handle, created_at FROM updates WHERE wish_id = ? ORDER BY id').bind(id).all<Update>()
   const a = await db.prepare("SELECT id, repo_url, note, github_handle, votes, status, created_at FROM answers WHERE wish_id = ? AND status = 'visible' ORDER BY votes DESC, created_at DESC").bind(id).all<Answer>()
-  const r = await db.prepare('SELECT id, question_id, body, nickname, kind, created_at FROM responses WHERE wish_id = ? ORDER BY id').bind(id).all<Wish['responses'][number]>()
+  const r = await db.prepare('SELECT id, question_id, parent_id, is_solution, body, nickname, kind, created_at FROM responses WHERE wish_id = ? ORDER BY id').bind(id).all<ResponseRow>()
   return { ...row, needs: q.results, updates: u.results, answers: a.results, responses: r.results }
 }
 
@@ -117,17 +121,37 @@ export async function addVote(
   return { ok: true, votes: upd?.votes ?? 0 }
 }
 
+// 巢狀回覆(issue #7):只做一層 —— 回覆一則「回覆」時,攤平掛回它的頂層留言(同一條串),不長二層樓。
 export async function addResponse(
   db: D1Database, wishId: number,
-  r: { body: string; nickname?: string; kind: 'answer' | 'metoo'; questionId?: number; agentTokenId?: number }, now: number,
-): Promise<number> {
-  const res = await db.prepare(
-    'INSERT INTO responses (wish_id, question_id, body, nickname, kind, created_at, agent_token_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
-  ).bind(wishId, r.questionId ?? null, r.body, r.nickname ?? null, r.kind, now, r.agentTokenId ?? null).run()
-  if (r.questionId) {
-    await db.prepare('UPDATE needs SET resolved = 1 WHERE id = ? AND wish_id = ?').bind(r.questionId, wishId).run()
+  r: { body: string; nickname?: string; kind: 'answer' | 'metoo'; questionId?: number; parentId?: number; agentTokenId?: number }, now: number,
+): Promise<{ id: number; parentId: number | null; questionId: number | null }> {
+  let parentId: number | null = null
+  if (r.parentId) {
+    const parent = await db.prepare('SELECT id, parent_id FROM responses WHERE id = ? AND wish_id = ?')
+      .bind(r.parentId, wishId).first<{ id: number; parent_id: number | null }>()
+    if (parent) parentId = parent.parent_id ?? parent.id
   }
-  return res.meta.last_row_id as number
+  const questionId = r.questionId ?? null
+  const res = await db.prepare(
+    'INSERT INTO responses (wish_id, question_id, parent_id, body, nickname, kind, created_at, agent_token_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+  ).bind(wishId, questionId, parentId, r.body, r.nickname ?? null, r.kind, now, r.agentTokenId ?? null).run()
+  if (questionId) {
+    await db.prepare('UPDATE needs SET resolved = 1 WHERE id = ? AND wish_id = ?').bind(questionId, wishId).run()
+  }
+  return { id: res.meta.last_row_id as number, parentId, questionId }
+}
+
+// 許願者標記「這則回答解決了我的問題」——與 needs.resolved(缺口自動已解)各自獨立的欄位。
+export async function getResponseWithWish(
+  db: D1Database, id: number,
+): Promise<{ id: number; wish_id: number; parent_id: number | null; question_id: number | null; is_solution: number } | null> {
+  const row = await db.prepare('SELECT id, wish_id, parent_id, question_id, is_solution FROM responses WHERE id = ?')
+    .bind(id).first<{ id: number; wish_id: number; parent_id: number | null; question_id: number | null; is_solution: number }>()
+  return row ?? null
+}
+export async function setResponseSolution(db: D1Database, id: number, value: boolean): Promise<void> {
+  await db.prepare('UPDATE responses SET is_solution = ? WHERE id = ?').bind(value ? 1 : 0, id).run()
 }
 
 export async function listByStatus(db: D1Database, status: string): Promise<WishRow[]> {

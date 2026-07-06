@@ -99,6 +99,60 @@ describe('addResponse', () => {
   })
 })
 
+describe('addResponse — 巢狀回覆(issue #7)', () => {
+  it('回覆一則頂層留言,parent_id 指向它', async () => {
+    const id = await createWish(db(), sample(), 1)
+    const root = await addResponse(db(), id, { body: '我也想要', kind: 'metoo' }, 2)
+    const reply = await addResponse(db(), id, { body: '+1,而且希望能匯出', kind: 'answer', parentId: root.id }, 3)
+    expect(reply.parentId).toBe(root.id)
+    const after = await getWish(db(), id)
+    const r = after!.responses.find((x) => x.id === reply.id)
+    expect(r?.parent_id).toBe(root.id)
+  })
+
+  it('回覆一則「回覆」時攤平掛回同一條頂層串(只做一層)', async () => {
+    const id = await createWish(db(), sample(), 1)
+    const root = await addResponse(db(), id, { body: 'root', kind: 'metoo' }, 2)
+    const reply1 = await addResponse(db(), id, { body: 'reply1', kind: 'answer', parentId: root.id }, 3)
+    const reply2 = await addResponse(db(), id, { body: 'reply2 回覆 reply1', kind: 'answer', parentId: reply1.id }, 4)
+    expect(reply2.parentId).toBe(root.id)   // 沒有變成二層,攤平回頂層
+    const after = await getWish(db(), id)
+    expect(after!.responses.find((x) => x.id === reply2.id)?.parent_id).toBe(root.id)
+  })
+
+  it('回覆缺口的回答(questionId)一樣可以再被回覆', async () => {
+    const id = await createWish(db(), sample(), 1)
+    const w0 = await getWish(db(), id)
+    const needId = w0!.needs[0].id
+    const answer = await addResponse(db(), id, { body: '看材質', kind: 'answer', questionId: needId }, 2)
+    const followup = await addResponse(db(), id, { body: '那深色的呢?', kind: 'answer', parentId: answer.id }, 3)
+    expect(followup.parentId).toBe(answer.id)
+    expect(followup.questionId).toBeNull()
+  })
+})
+
+describe('response solution marker(issue #7)——與 needs.resolved 各自獨立', () => {
+  it('setResponseSolution 標記/取消,不影響 needs.resolved', async () => {
+    const { setResponseSolution, getResponseWithWish } = await import('../src/lib/d1')
+    const id = await createWish(db(), sample(), 1)
+    const root = await addResponse(db(), id, { body: '這是回答', kind: 'answer' }, 2)
+    let row = await getResponseWithWish(db(), root.id)
+    expect(row?.is_solution).toBe(0)
+    await setResponseSolution(db(), root.id, true)
+    row = await getResponseWithWish(db(), root.id)
+    expect(row?.is_solution).toBe(1)
+    expect(row?.wish_id).toBe(id)
+    await setResponseSolution(db(), root.id, false)
+    row = await getResponseWithWish(db(), root.id)
+    expect(row?.is_solution).toBe(0)
+  })
+
+  it('getResponseWithWish 對不存在的 id 回 null', async () => {
+    const { getResponseWithWish } = await import('../src/lib/d1')
+    expect(await getResponseWithWish(db(), 999999)).toBeNull()
+  })
+})
+
 describe('admin', () => {
   it('listByStatus + setStatus', async () => {
     const id = await createWish(db(), sample({ status: 'pending' }), 1)

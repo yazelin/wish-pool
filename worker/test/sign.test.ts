@@ -35,4 +35,12 @@ describe('signWish / verifyWish', () => {
     const sig = await signWish(S, { title: '  報價  ', problem: 'p' }, 'ok', 5000)
     expect(await verifyWish(S, { title: '報價', problem: 'p' }, 'ok', sig, 1000)).toBe(true)
   })
+
+  it('difficulty is part of the canonical: tampering it fails verification', async () => {
+    const w = { title: 't', problem: 'p', current: 'c', desired: 'd', who: 'w', difficulty: '巨大' }
+    const sig = await signWish(S, w, 'ok', 9999999999)
+    expect(await verifyWish(S, w, 'ok', sig, 1000)).toBe(true)
+    expect(await verifyWish(S, { ...w, difficulty: '小' }, 'ok', sig, 1000)).toBe(false)
+    expect(await verifyWish(S, { ...w, difficulty: undefined }, 'ok', sig, 1000)).toBe(false)
+  })
 })

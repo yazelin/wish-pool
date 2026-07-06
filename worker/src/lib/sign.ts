@@ -1,8 +1,8 @@
 // 對「AI 判 ok 的願望內容」做 HMAC 簽章,讓 /api/wishes 能確認 verdict:'ok' 真的來自
-// /api/refine 且內容未被改過。canonical 對五個內容欄位 trim 後序列化,與前端送出前的
+// /api/refine 且內容未被改過。canonical 對六個內容欄位(含 difficulty) trim 後序列化,與前端送出前的
 // .trim() 一致,所以未修改的誠實送出會通過、改過或偽造的驗不過(-> pending)。
 
-type WishFields = { title?: string; problem?: string; current?: string; desired?: string; who?: string }
+type WishFields = { title?: string; problem?: string; current?: string; desired?: string; who?: string; difficulty?: string }
 
 function canonical(w: WishFields): string {
   return JSON.stringify([
@@ -11,6 +11,7 @@ function canonical(w: WishFields): string {
     String(w.current ?? '').trim(),
     String(w.desired ?? '').trim(),
     String(w.who ?? '').trim(),
+    String(w.difficulty ?? '').trim(),
   ])
 }
 

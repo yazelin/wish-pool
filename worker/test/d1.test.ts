@@ -31,6 +31,28 @@ describe('createWish + getWish', () => {
   })
 })
 
+describe('createWish + gaps/difficulty', () => {
+  it('createWish stores difficulty and writes gaps into needs', async () => {
+    const id = await createWish(env.DB, {
+      title: '復刻類許願', status: 'published',
+      open_questions: ['要不要排行榜?'],
+      difficulty: '大',
+      gaps: [
+        { type: 'resource', body: '全套美術素材需原創' },
+        { type: 'weird', body: '不明型別落為 info' },
+        { type: 'skill', body: '' },               // 空 body 跳過
+      ],
+    }, 1700000000)
+    const w = await getWish(env.DB, id)
+    expect(w?.difficulty).toBe('大')
+    const bodies = w!.needs.map((n) => `${n.type}:${n.body}`)
+    expect(bodies).toContain('info:要不要排行榜?')
+    expect(bodies).toContain('resource:全套美術素材需原創')
+    expect(bodies).toContain('info:不明型別落為 info')
+    expect(bodies).toHaveLength(3)
+  })
+})
+
 describe('listWishes', () => {
   it('hides pending/hidden, shows published', async () => {
     await createWish(db(), sample({ status: 'pending', title: 'P' }), 1)

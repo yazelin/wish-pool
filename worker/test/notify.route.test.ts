@@ -57,7 +57,7 @@ describe('清單活動計數(「有新進展」徽章的觸發條件)', () => {
 })
 
 describe('公開欄位契約(隱私欄位不外洩)', () => {
-  const WISH_KEYS = ['id', 'title', 'problem', 'current', 'desired', 'who', 'nickname', 'status', 'votes', 'created_at', 'accepted_answer_id', 'discussion_url', 'echoes'].sort()
+  const WISH_KEYS = ['id', 'title', 'problem', 'current', 'desired', 'who', 'nickname', 'status', 'votes', 'created_at', 'accepted_answer_id', 'discussion_url', 'difficulty', 'echoes'].sort()
 
   it('GET /api/wishes 每列只含白名單欄位 + 活動計數', async () => {
     const id = await seed()

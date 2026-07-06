@@ -1,6 +1,9 @@
 import { Hono } from 'hono'
 import type { Env } from '../env'
-import { createWish, listWishes, getWish, publicWishExists, addVote, addResponse, PUBLIC_STATUSES } from '../lib/d1'
+import {
+  createWish, listWishes, getWish, publicWishExists, addVote, addResponse, PUBLIC_STATUSES,
+  getResponseWithWish, setResponseSolution,
+} from '../lib/d1'
 import { verifyTurnstile } from '../lib/turnstile'
 import { checkAndBump, hashIp } from '../lib/ratelimit'
 import { verifyWish } from '../lib/sign'
@@ -121,13 +124,44 @@ wishes.post('/api/wishes/:id/responses', async (c) => {
   const body = String(b.body ?? '').trim()
   if (!body) return c.json({ error: 'body_required' }, 400)
   const kind = b.kind === 'metoo' ? 'metoo' : 'answer'
-  const rid = await addResponse(c.env.DB, id, {
-    body, nickname: b.nickname, kind, questionId: b.questionId ? Number(b.questionId) : undefined,
+  const r = await addResponse(c.env.DB, id, {
+    body, nickname: b.nickname, kind,
+    questionId: b.questionId ? Number(b.questionId) : undefined,
+    parentId: b.parentId ? Number(b.parentId) : undefined,
     agentTokenId: (c as any).get('atokId') ?? undefined,
   }, Math.floor(Date.now() / 1000))
   c.executionCtx.waitUntil((async () => {
+      const w = await getWish(c.env.DB, id)
+      // 通知(issue #3 的延伸):有人回覆你的留言 / 有人回答了你補的缺口 —— 都留言到願望的 GitHub Discussion,
+      // 訂閱該串的人(含許願者本人)會收到 GitHub 原生通知。
+      if (r.parentId) {
+        await notifyDiscussion(c.env, w?.discussion_url ?? null, `【討論】有人回覆了一則留言:${body}`).catch(() => {})
+      }
+      if (r.questionId) {
+        const need = w?.needs.find((n) => n.id === r.questionId)
+        await notifyDiscussion(c.env, w?.discussion_url ?? null, `【討論】有人回答了缺口「${need?.body ?? ''}」:${body}`).catch(() => {})
+      }
       const a = await autoAdoptIfHot(c.env.DB, id)
       if (a.promoted) await notifyDiscussion(c.env, a.discussion_url, '【狀態更新】這個願望被採納了(社群熱度達標:投幣+共鳴達 3)—— 尋找實現它的人(或 AI)。').catch(() => {})
   })())
-  return c.json({ id: rid })
+  return c.json({ id: r.id })
+})
+
+// 許願者標記「這則回答/回覆解決了我的問題」(issue #7)——與缺口自動已解(needs.resolved)各自獨立,
+// 沒有登入機制可辨識「誰是許願者」,與其它公開寫入端點一樣走榮譽制(Turnstile/agent 節流即可)。
+wishes.post('/api/responses/:id/solve', async (c) => {
+  const id = Number(c.req.param('id'))
+  const b = await c.req.json().catch(() => ({}))
+  const agent = await checkAgentBearer(c, 'atoks', 30)
+  if (agent instanceof Response) return agent
+  if (!agent) {
+    const blocked = await guard(c, b.turnstileToken, 'solve', 30)
+    if (blocked) return blocked
+  }
+  if (!Number.isInteger(id)) return c.json({ error: 'not_found' }, 404)
+  const row = await getResponseWithWish(c.env.DB, id)
+  if (!row || !(await publicWishExists(c.env.DB, row.wish_id))) return c.json({ error: 'not_found' }, 404)
+  const value = b.value === false ? false : true
+  await setResponseSolution(c.env.DB, id, value)
+  return c.json({ ok: true, is_solution: value })
 })

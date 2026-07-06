@@ -8,6 +8,7 @@ const el = (t, cls, txt) => { const e = document.createElement(t); if (cls) e.cl
 let currentSort = 'hot'
 let wishCache = []          // 池面列表快取(星帶/燈共用)
 let openSheetId = null      // 目前打開的願望 id
+let echoNewestFirst = false // 池邊的討論排序(issue #7 討論摺疊/排序):預設舊→新
 
 const PHRASE = { published: '池中漂著', adopted: '有人心動了', building: '實現中', done: '成真了' }
 
@@ -451,6 +452,61 @@ function closeSheet() { sheetBg.classList.remove('open'); sheet.innerHTML = ''; 
 sheetBg.addEventListener('click', (e) => { if (e.target === sheetBg) closeSheet() })
 addEventListener('keydown', (e) => { if (e.key === 'Escape' && openSheetId != null) closeSheet() })
 
+// ============ 巢狀回覆(issue #7):留言/缺口回答共用的渲染 —— 回覆一則留言、
+// 標記「這解決了我的問題」、討論量大時摺疊過往回覆(一次先顯示最近 3 則)。============
+const REPLY_SHOW = 3
+
+function renderEchoNode(r, w, tagNew) {
+  const rr = el('div', 'echo' + (r.is_solution ? ' solved' : ''))
+  const body = el('div')
+  linkifyInto(body, r.body)
+  tagNew(body, r.created_at)
+  rr.appendChild(body)
+  rr.appendChild(el('div', 'wisher', r.nickname ? `—— ${r.nickname}` : '—— 有人輕聲說'))
+  rr.appendChild(renderResponseExtras(r, w, tagNew))
+  return rr
+}
+
+function renderReplyNode(r, tagNew) {
+  const rr = el('div', 'echo reply' + (r.is_solution ? ' solved' : ''))
+  const body = el('div')
+  linkifyInto(body, r.body)
+  tagNew(body, r.created_at)
+  rr.appendChild(body)
+  rr.appendChild(el('div', 'wisher', r.nickname ? `—— ${r.nickname}` : '—— 有人回覆'))
+  if (r.is_solution) rr.appendChild(el('span', 'phrase done', '已解答'))
+  else { const b = el('button', 'echo-solve', '這解決了我的問題'); b.onclick = () => markSolved(r.id); rr.appendChild(b) }
+  return rr
+}
+
+// 一則留言/回答共用的動作列(標記已解答/回覆)+ 掛在它下面的巢狀回覆(只做一層,見 addResponse 的攤平邏輯)
+function renderResponseExtras(r, w, tagNew) {
+  const frag = document.createDocumentFragment()
+  const bar = el('div', 'echo-actions')
+  if (r.is_solution) bar.appendChild(el('span', 'phrase done', '已解答'))
+  else { const b = el('button', 'echo-solve', '這解決了我的問題'); b.onclick = () => markSolved(r.id); bar.appendChild(b) }
+  const replyBtn = el('button', 'echo-reply', '回覆')
+  replyBtn.onclick = () => replyTo(w.id, r.id)
+  bar.appendChild(replyBtn)
+  frag.appendChild(bar)
+
+  const kids = w.responses.filter((x) => x.parent_id === r.id).sort((a, b) => a.created_at - b.created_at)
+  if (kids.length) {
+    const list = el('div', 'replies')
+    const older = kids.length > REPLY_SHOW ? kids.slice(0, kids.length - REPLY_SHOW) : []
+    const recent = kids.length > REPLY_SHOW ? kids.slice(kids.length - REPLY_SHOW) : kids
+    recent.forEach((h) => list.appendChild(renderReplyNode(h, tagNew)))
+    if (older.length) {
+      const anchor = list.firstChild
+      const more = el('button', 'echo-more', `顯示更早的 ${older.length} 則回覆`)
+      more.onclick = () => { more.remove(); older.forEach((h) => list.insertBefore(renderReplyNode(h, tagNew), anchor)) }
+      list.insertBefore(more, anchor)
+    }
+    frag.appendChild(list)
+  }
+  return frag
+}
+
 async function openSheet(id) {
   let w
   try { w = await api(`/api/wishes/${id}`) } catch (e) { alert('這個願望暫時打不開,請稍後再試'); return }
@@ -521,19 +577,33 @@ async function openSheet(id) {
   }
   sheet.appendChild(act)
 
-  // 共鳴聲(responses;有 question_id 的已掛在缺口下,這裡只放自由留言)
-  const freeEchoes = w.responses.filter((r) => !r.question_id)
+  // 共鳴聲(responses;有 question_id 的已掛在缺口下,這裡只放自由留言的頂層;
+  // 巢狀回覆掛在各自留言下 —— 討論量大時摺疊過往回覆+可切換新舊排序(issue #7)
+  const freeEchoes = w.responses.filter((r) => !r.question_id && !r.parent_id)
   if (freeEchoes.length) {
-    sheet.appendChild(el('p', 'sheet-label', `池邊的討論(${freeEchoes.length})`))
-    freeEchoes.forEach((r) => {
-      const rr = el('div', 'echo')
-      const body = el('div')
-      linkifyInto(body, r.body)
-      tagNew(body, r.created_at)
-      rr.appendChild(body)
-      rr.appendChild(el('div', 'wisher', r.nickname ? `—— ${r.nickname}` : '—— 有人輕聲說'))
-      sheet.appendChild(rr)
-    })
+    const labelRow = el('div', 'sheet-label-row')
+    labelRow.appendChild(el('p', 'sheet-label', `池邊的討論(${freeEchoes.length})`))
+    const echoList = el('div')
+    const ECHO_SHOW = 5
+    const renderEchoes = () => {
+      echoList.innerHTML = ''
+      const sorted = [...freeEchoes].sort((a, b) => (echoNewestFirst ? b.created_at - a.created_at : a.created_at - b.created_at))
+      sorted.slice(0, ECHO_SHOW).forEach((r) => echoList.appendChild(renderEchoNode(r, w, tagNew)))
+      const rest = sorted.slice(ECHO_SHOW)
+      if (rest.length) {
+        const more = el('button', 'echo-more', `顯示更多(還有 ${rest.length} 則)`)
+        more.onclick = () => { more.remove(); rest.forEach((r) => echoList.appendChild(renderEchoNode(r, w, tagNew))) }
+        echoList.appendChild(more)
+      }
+    }
+    if (freeEchoes.length > 1) {
+      const sortBtn = el('button', 'sort-toggle', echoNewestFirst ? '新→舊' : '舊→新')
+      sortBtn.onclick = () => { echoNewestFirst = !echoNewestFirst; sortBtn.textContent = echoNewestFirst ? '新→舊' : '舊→新'; renderEchoes() }
+      labelRow.appendChild(sortBtn)
+    }
+    sheet.appendChild(labelRow)
+    sheet.appendChild(echoList)
+    renderEchoes()
   }
 
   // GitHub 討論串內嵌(giscus,綁定該願望專屬 discussion number;沿用 catime 模式)
@@ -589,11 +659,12 @@ async function openSheet(id) {
     const label = { info: '缺資訊', skill: '缺技能', resource: '缺資源' }[n.type] || '缺資訊'
     const wrap = el('div', 'need' + (n.resolved ? ' resolved' : ''))
     wrap.appendChild(el('div', null, `[${label}] ${n.body}`))
-    // 掛在這個缺口下的回答
-    w.responses.filter((r) => r.question_id === n.id).forEach((r) => {
-      const a = el('div', 'need-answer')
-      const ab = el('span'); linkifyInto(ab, r.body); a.appendChild(ab)
-      a.appendChild(el('span', 'wisher', r.nickname ? ` —— ${r.nickname}` : ' —— 有人回答'))
+    // 掛在這個缺口下的回答(含各自的巢狀回覆/標記已解答 —— issue #7)
+    w.responses.filter((r) => r.question_id === n.id && !r.parent_id).forEach((r) => {
+      const a = el('div', 'need-answer' + (r.is_solution ? ' solved' : ''))
+      const ab = el('div'); linkifyInto(ab, r.body); tagNew(ab, r.created_at); a.appendChild(ab)
+      a.appendChild(el('div', 'wisher', r.nickname ? `—— ${r.nickname}` : '—— 有人回答'))
+      a.appendChild(renderResponseExtras(r, w, tagNew))
       wrap.appendChild(a)
     })
     if (!n.resolved) {
@@ -721,6 +792,36 @@ async function sendEcho(wishId) {
     watchWish(wishId)
     await refreshSheet()
   } catch (e) { alert('送出失敗,請稍後再試') }
+}
+
+async function replyTo(wishId, parentId) {
+  const v = await askForm('回覆這則留言', [
+    { name: 'body', type: 'textarea', label: '回覆內容', required: true },
+    { name: 'nickname', label: '留個名字(可留空)' },
+  ])
+  if (!v) return
+  try {
+    const token = await getTurnstileToken()
+    await api(`/api/wishes/${wishId}/responses`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ turnstileToken: token, body: v.body, nickname: v.nickname, kind: 'answer', parentId }),
+    })
+    watchWish(wishId)
+    await refreshSheet()
+  } catch (e) { alert('送出失敗,請稍後再試') }
+}
+
+// 許願者標記「這則回答/回覆解決了我的問題」——沒有登入機制辨識誰是許願者,與池子其它公開動作一樣走榮譽制。
+async function markSolved(responseId) {
+  if (!confirm('把這則標記為「解決了我的問題」?')) return
+  try {
+    const token = await getTurnstileToken()
+    await api(`/api/responses/${responseId}/solve`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ turnstileToken: token }),
+    })
+    await refreshSheet()
+  } catch (e) { alert('標記失敗,請稍後再試') }
 }
 
 async function postWithTurnstile(path, payload, okMsg, watchId) {

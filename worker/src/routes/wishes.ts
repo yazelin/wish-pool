@@ -15,6 +15,23 @@ import { checkAgentBearer } from '../lib/agent-auth'
 
 const DAY = 86400
 
+// 前導對話 transcript 的防灌爆上限:role 白名單、最多 80 則、每則截 2000 字、總長(JSON 字串)截 100KB。
+// 沒帶 messages 照常成功(向後相容:舊前端/純表單/agent 代許願都沒有對話)。
+const TRANSCRIPT_MAX_MSGS = 80
+const TRANSCRIPT_MAX_MSG_CHARS = 2000
+const TRANSCRIPT_MAX_JSON_CHARS = 100_000
+export function sanitizeTranscript(input: unknown): string | undefined {
+  if (!Array.isArray(input)) return undefined
+  const msgs = input
+    .filter((m: any) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+    .slice(0, TRANSCRIPT_MAX_MSGS)
+    .map((m: any) => ({ role: m.role as 'user' | 'assistant', content: String(m.content).slice(0, TRANSCRIPT_MAX_MSG_CHARS) }))
+  if (!msgs.length) return undefined
+  let json = JSON.stringify(msgs)
+  while (json.length > TRANSCRIPT_MAX_JSON_CHARS && msgs.length > 1) { msgs.pop(); json = JSON.stringify(msgs) }
+  return json
+}
+
 export const wishes = new Hono<{ Bindings: Env }>()
 
 function ip(c: any): string { return c.req.header('CF-Connecting-IP') || '0.0.0.0' }
@@ -78,6 +95,9 @@ wishes.post('/api/wishes', async (c) => {
     gaps: Array.isArray(b.gaps)
       ? b.gaps.slice(0, 20).map((g: any) => ({ type: g?.type, body: String(g?.body ?? '').slice(0, 500) }))
       : [],
+    // 與女神的前導對話原文(優化引導 prompt / 看使用者卡在哪 / 給實作者完整 context)。
+    // 僅站主可見:只進 admin 端點,公開欄位白名單不含 transcript。
+    transcript: sanitizeTranscript(b.messages),
   }, Math.floor(Date.now() / 1000))
   if (status === 'published') {
     c.executionCtx.waitUntil(

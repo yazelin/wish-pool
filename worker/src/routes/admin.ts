@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Env } from '../env'
-import { listByStatus, listByStatusAdmin, setStatus, exportAll, setAnswerStatus, acceptAnswer, resolveNeed, answerExists, deleteWish, getWish, setDiscussionUrl } from '../lib/d1'
+import { listByStatus, listByStatusAdmin, setStatus, exportAll, setAnswerStatus, acceptAnswer, resolveNeed, answerExists, deleteWish, getWish, getWishAdmin, setDiscussionUrl } from '../lib/d1'
 import { createWishDiscussion, notifyDiscussion } from '../lib/github'
 
 const STATUSES = ['pending', 'published', 'adopted', 'building', 'done', 'hidden']
@@ -19,11 +19,12 @@ admin.get('/api/admin/wishes', async (c) => {
   return c.json({ wishes: await listByStatusAdmin(c.env.DB, status) })
 })
 
-// 後台單筆詳情:不分狀態都可讀(公開單筆端點對 pending/hidden 回 404 後,後台審核走這裡)
+// 後台單筆詳情:不分狀態都可讀(公開單筆端點對 pending/hidden 回 404 後,後台審核走這裡);
+// 額外帶 transcript(與女神的前導對話)—— 隱私欄位,只有這個 admin 端點會回。
 admin.get('/api/admin/wishes/:id', async (c) => {
   const id = Number(c.req.param('id'))
   if (!Number.isInteger(id)) return c.json({ error: 'not_found' }, 404)
-  const w = await getWish(c.env.DB, id)
+  const w = await getWishAdmin(c.env.DB, id)
   if (!w) return c.json({ error: 'not_found' }, 404)
   return c.json(w)
 })

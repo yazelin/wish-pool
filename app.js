@@ -999,6 +999,9 @@ function renderPreview(r) {
   if (r.gaps?.length) {
     form.appendChild(el('div', 'need', '女神列的實作缺口(會一起放進「還缺什麼」):' + r.gaps.map((g) => g.body).join('; ')))
   }
+  if (chatMessages.length) {
+    form.appendChild(el('p', 'muted', '送出時,你與女神的對話會一併保存(僅站主可見,用來讓女神越來越會引導)'))
+  }
   const submit = el('button', 'primary', '投進池裡'); submit.style.marginTop = '8px'
   submit.onclick = () => submitWish(form, r, submit)
   form.appendChild(submit)
@@ -1022,6 +1025,8 @@ async function submitWish(form, r, submit) {
     gaps: r.gaps || [],
     verdict: r.verdict, // 只有 AI final 且 ok 才會直接入池;純表單(無 verdict)進審核
     sig: r.sig,         // /api/refine 對 ok 內容的簽章;後端驗簽通過才 published,改過/偽造 -> pending
+    // 與女神的前導對話原文一併保存(僅站主可見;後端有 role/則數/長度上限)。純表單沒有對話就不帶。
+    messages: chatMessages.length ? chatMessages : undefined,
   }
   try {
     const token = await getTurnstileToken()

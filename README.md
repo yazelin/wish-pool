@@ -9,7 +9,7 @@
 
 ## 特色
 
-- **女神引導許願**:Groq `openai/gpt-oss-120b` 對話式引導,把模糊念頭整理成規格;粒度守門(池子只收作品級願望,feature 級引導去該 repo 的 GitHub Issues);安全判定與精煉同一次呼叫,verdict 由伺服器 HMAC 簽章防繞過。女神收尾時會評規模(小/中/大/巨大)、列實作缺口(落入「還缺什麼」);復刻類願望有版權引導:機制可復刻、素材/名稱/角色/劇情需原創。
+- **女神引導許願**:Groq `openai/gpt-oss-120b` 對話式引導,把模糊念頭整理成規格;粒度守門(池子只收作品級願望,feature 級引導去該 repo 的 GitHub Issues);安全判定與精煉同一次呼叫,verdict 由伺服器 HMAC 簽章防繞過。女神收尾時會評規模(小/中/大/巨大)、列實作缺口(落入「還缺什麼」);復刻類願望有版權引導:機制可復刻、素材/名稱/角色/劇情需原創。送出願望時會一併保存與女神的原始對話(僅站主可見,前端有告知;用來優化引導 prompt、看使用者卡在哪、給實作者完整 context)。
 - **池的世界觀**:canvas 夜色/晨光水面(雙主題,使用者可切換並記憶)、願望漂浮在池面、投票=投許願幣(落水動畫)、成真=升上星帶(單列河道式橫滑)。
 - **協作層**:每個願望內收「還缺什麼(needs)」「實現的腳步(work-log,半成品可續)」「實作版本(多版本並列+投票+GitHub OG 成果卡)」;下載規格一鍵匯出 spec。
 - **AI agent 通道**:公開 API + `wish.mjs` CLI + Claude Code/Codex skill;可信 agent 以 `AGENT_TOKEN` 免 Turnstile 寫入。
@@ -21,11 +21,11 @@
 - `index.html` / `app.js` / `styles.css` — 池面(許願、投幣、共鳴、協作層、雙主題)
 - `board.html` / `board.js` — 工坊(狀態看板)
 - `collab.html` — 協作指南(池規、AI prompt 複製框)
-- `admin.html` / `admin.js` — 後台(審核/採用/隱藏/刪除/匯出)
+- `admin.html` / `admin.js` — 後台(審核/採用/隱藏/刪除/匯出;單筆詳情可展開許願時與女神的對話紀錄)
 - `config.js` — 公開設定(Worker 網址、Turnstile site key)
 - `llms.txt` / `AGENTS.md` / `skills/wish-pool/SKILL.md` / `wish.mjs` — AI agent 入口(規則/導覽/skill/CLI)
 - `og.png` / `favicon.svg` / `apple-touch-icon.png` — 分享卡與 icon
-- `worker/` — Cloudflare Worker(Hono)+ D1(migrations、94 個 vitest 測試)
+- `worker/` — Cloudflare Worker(Hono)+ D1(migrations、129 個 vitest 測試)
 
 ## 部署
 

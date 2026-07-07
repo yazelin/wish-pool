@@ -3,7 +3,9 @@ export type NewWish = {
   who?: string; nickname?: string; status: string; open_questions: string[]
   difficulty?: string
   gaps?: { type: string; body: string }[]
+  transcript?: string   // 與女神的前導對話(JSON 字串;僅 admin 端點回傳)
 }
+export type TranscriptMsg = { role: 'user' | 'assistant'; content: string }
 export type WishRow = {
   id: number; title: string; problem: string | null; current: string | null
   desired: string | null; who: string | null; nickname: string | null
@@ -37,10 +39,10 @@ const WISH_PUBLIC_COLS = 'id, title, problem, current, desired, who, nickname, s
 
 export async function createWish(db: D1Database, w: NewWish, now: number): Promise<number> {
   const res = await db.prepare(
-    `INSERT INTO wishes (title, problem, current, desired, who, nickname, status, votes, created_at, difficulty)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+    `INSERT INTO wishes (title, problem, current, desired, who, nickname, status, votes, created_at, difficulty, transcript)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`,
   ).bind(w.title, w.problem ?? null, w.current ?? null, w.desired ?? null,
-         w.who ?? null, w.nickname ?? null, w.status, now, w.difficulty || null).run()
+         w.who ?? null, w.nickname ?? null, w.status, now, w.difficulty || null, w.transcript ?? null).run()
   const id = res.meta.last_row_id as number
   for (const q of w.open_questions) {
     if (!q?.trim()) continue
@@ -81,6 +83,19 @@ export async function getWish(db: D1Database, id: number): Promise<Wish | null> 
   const a = await db.prepare("SELECT id, repo_url, note, github_handle, votes, status, created_at FROM answers WHERE wish_id = ? AND status = 'visible' ORDER BY votes DESC, created_at DESC").bind(id).all<Answer>()
   const r = await db.prepare('SELECT id, question_id, parent_id, is_solution, body, nickname, kind, created_at FROM responses WHERE wish_id = ? ORDER BY id').bind(id).all<ResponseRow>()
   return { ...row, needs: q.results, updates: u.results, answers: a.results, responses: r.results }
+}
+
+// 後台單筆詳情用:getWish(公開欄位白名單)+ transcript(與女神的前導對話)。
+// transcript 是隱私欄位,絕不能走公開端點 —— 公開路由一律用 getWish,只有 admin 路由用這個。
+export async function getWishAdmin(db: D1Database, id: number): Promise<(Wish & { transcript: TranscriptMsg[] | null }) | null> {
+  const w = await getWish(db, id)
+  if (!w) return null
+  const row = await db.prepare('SELECT transcript FROM wishes WHERE id = ?').bind(id).first<{ transcript: string | null }>()
+  let transcript: TranscriptMsg[] | null = null
+  if (row?.transcript) {
+    try { const parsed = JSON.parse(row.transcript); if (Array.isArray(parsed)) transcript = parsed } catch (e) { /* 壞資料就當沒有 */ }
+  }
+  return { ...w, transcript }
 }
 
 // 公開端點用:非公開狀態(pending/hidden)視同不存在 → 404,不洩漏存在性。

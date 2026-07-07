@@ -155,6 +155,23 @@ async function manageDetail(id, card) {
       box.appendChild(ans)
     })
   })
+  // 許願時與女神的原始對話(僅 admin 端點回傳)—— 優化引導 prompt / 看使用者卡在哪 / 給實作者完整 context
+  if (Array.isArray(w.transcript) && w.transcript.length) {
+    const det = document.createElement('details')
+    const sum = document.createElement('summary')
+    sum.textContent = `對話紀錄(${w.transcript.length} 則,僅站主可見)`
+    sum.className = 'muted'
+    sum.style.cursor = 'pointer'
+    det.appendChild(sum)
+    w.transcript.forEach((m) => {
+      const who = m.role === 'user' ? '許願者' : '女神'
+      const line = el('div', null, `${who}:${m.content}`)
+      line.style.cssText = 'margin:4px 0 4px 16px;padding-left:10px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:.9rem;border-left:2px solid ' +
+        (m.role === 'user' ? 'var(--amber-soft)' : 'var(--success)')
+      det.appendChild(line)
+    })
+    box.appendChild(det)
+  }
   card.appendChild(box)
 }
 

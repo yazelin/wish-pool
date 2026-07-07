@@ -56,8 +56,13 @@ async function load() {
   data.wishes.forEach((w) => {
     const card = el('div', 'card')
     card.appendChild(el('h3', null, `#${w.id} ${w.title}`))
-    const meta = [w.problem && '問題:' + w.problem, w.desired && '期望:' + w.desired, w.who && '誰用:' + w.who].filter(Boolean).join(' / ')
-    card.appendChild(el('div', 'muted', meta))
+    // 四欄各自一行、完整顯示(原本擠一行且漏渲染「現況」,後台看不到完整內容)
+    ;[['問題', w.problem], ['現況', w.current], ['期望', w.desired], ['誰用', w.who]].forEach(([k, v]) => {
+      if (!v) return
+      const line = el('div', 'muted', `${k}:${v}`)
+      line.style.cssText = 'margin-top:4px;white-space:pre-wrap;overflow-wrap:anywhere'
+      card.appendChild(line)
+    })
     // 決策儀表:進下一狀態前要看的訊號
     const dash = el('div', null,
       `幣 ${w.votes} · 共鳴 ${w.echoes ?? 0} · ${(w.needs_total ?? 0) === 0 ? '無缺口' : ((w.needs_open ?? 0) === 0 ? `缺口 ${w.needs_total} 題全解` : `缺口還有 ${w.needs_open}/${w.needs_total} 題未解`)} · 認領 ${w.claims ?? 0} · 實作 ${w.answers_count ?? 0} 版` +

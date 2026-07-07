@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseRefineResponse } from '../src/lib/llm'
+import { parseRefineResponse, parseReviewResponse } from '../src/lib/llm'
 
 describe('parseRefineResponse', () => {
   it('parses an ask response', () => {
@@ -89,5 +89,33 @@ describe('parseRefineResponse', () => {
       expect(r.difficulty).toBe('')
       expect(r.gaps).toEqual([])
     }
+  })
+})
+
+describe('parseReviewResponse(伺服器端重審)', () => {
+  it('parses ok verdict with reason', () => {
+    expect(parseReviewResponse('{"verdict":"ok","reason":"原創作品願望"}'))
+      .toEqual({ verdict: 'ok', reason: '原創作品願望' })
+  })
+
+  it('parses review verdict', () => {
+    expect(parseReviewResponse('{"verdict":"review","reason":"堅持照搬原作素材"}').verdict).toBe('review')
+  })
+
+  it('extracts JSON embedded in prose', () => {
+    expect(parseReviewResponse('判定如下:\n{"verdict":"ok","reason":"沒問題"}\n以上').verdict).toBe('ok')
+  })
+
+  it('garbage / non-JSON -> review(解析失敗一律當 review)', () => {
+    expect(parseReviewResponse('抱歉我壞了').verdict).toBe('review')
+  })
+
+  it('unknown verdict -> review', () => {
+    expect(parseReviewResponse('{"verdict":"maybe","reason":"?"}').verdict).toBe('review')
+  })
+
+  it('missing reason -> empty string; overlong reason capped at 500', () => {
+    expect(parseReviewResponse('{"verdict":"ok"}').reason).toBe('')
+    expect(parseReviewResponse(JSON.stringify({ verdict: 'review', reason: 'x'.repeat(600) })).reason.length).toBe(500)
   })
 })

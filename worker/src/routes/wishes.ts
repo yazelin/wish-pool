@@ -7,7 +7,7 @@ import {
 import { verifyTurnstile } from '../lib/turnstile'
 import { checkAndBump, hashIp } from '../lib/ratelimit'
 import { verifyWish } from '../lib/sign'
-import { DIFFICULTIES } from '../lib/llm'
+import { DIFFICULTIES, reviewWish } from '../lib/llm'
 import { createWishDiscussion } from '../lib/github'
 import { setDiscussionUrl, autoAdoptIfHot } from '../lib/d1'
 import { notifyDiscussion } from '../lib/github'
@@ -76,16 +76,32 @@ wishes.post('/api/wishes', async (c) => {
   const difficulty = DIFFICULTIES.includes(w.difficulty) ? String(w.difficulty) : undefined
   // 女神的整理筆記(公開,給實作者);使用者可控輸入,截 4000 字防灌爆
   const notes = typeof w.notes === 'string' && w.notes.trim() ? w.notes.trim().slice(0, 4000) : undefined
-  // verdict:'ok' 只有在後端驗簽(/api/refine 簽的 sig,且內容未被改過)成立時才自動上牆;
-  // 否則(偽造、改過、過期、純表單無 sig)一律進 pending 等 owner 審。
+  // verdict:'ok' 且後端驗簽(/api/refine 簽的 sig,內容未被改過)成立 -> 直接上牆;
+  // 簽章無效(偽造、改過、過期、純表單無 sig)-> 女神伺服器端重審「最終版內容」(同一套守則):
+  // ok -> published;review 或 LLM 掛掉/回垃圾 -> pending 等 owner 審(現行為當 fallback)。
+  // 重審不另開洞:這條路仍在上面的 Turnstile guard / agent token 限流之內。
   let status = 'pending'
+  let reason: string | undefined
+  let sigValid = false
   if (b.verdict === 'ok') {
-    const valid = await verifyWish(
+    sigValid = await verifyWish(
       c.env.WISH_SIGN_SECRET,
       { title, problem: w.problem, current: w.current, desired: w.desired, who: w.who, difficulty },
       'ok', b.sig, Math.floor(Date.now() / 1000),
     )
-    if (valid) status = 'published'
+  }
+  if (sigValid) {
+    status = 'published'
+  } else {
+    try {
+      const r = await reviewWish(c.env, { title, problem: w.problem, current: w.current, desired: w.desired, who: w.who, notes })
+      if (r.verdict === 'ok') status = 'published'
+      else reason = r.reason || undefined
+    } catch (e) {
+      // LLM 掛了絕不能讓 submit 5xx:照舊收進 pending,願望不丟
+      console.error('review llm error:', String(e))
+      reason = '女神一時忙不過來'
+    }
   }
   const id = await createWish(c.env.DB, {
     title,
@@ -109,7 +125,8 @@ wishes.post('/api/wishes', async (c) => {
         .catch((e) => console.error('discussion create failed:', String(e))),
     )
   }
-  return c.json({ id, status })
+  // pending 時附上原因(重審不過的一句話 / LLM 忙不過來),讓前端顯示對的訊息
+  return c.json(reason ? { id, status, reason } : { id, status })
 })
 
 wishes.post('/api/wishes/:id/vote', async (c) => {

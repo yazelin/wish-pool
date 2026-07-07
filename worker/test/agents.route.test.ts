@@ -112,8 +112,11 @@ describe('agent 代理人類參與(投幣/留言/許願)', () => {
     const row = await env.DB.prepare('SELECT agent_token_id FROM responses WHERE wish_id = ?').bind(id).first<any>()
     expect(row.agent_token_id).toBeGreaterThan(0)
   })
-  it('agent 許願(無簽章)-> 進 pending 待審', async () => {
+  it('agent 許願(無簽章)-> 女神伺服器端重審;判 review 就進 pending 待審', async () => {
     const token = await mintToken()
+    fetchMock.get('https://groq.test')
+      .intercept({ path: '/openai/v1/chat/completions', method: 'POST' })
+      .reply(200, { choices: [{ message: { content: '{"verdict":"review","reason":"拿不準"}' } }] })
     const res = await SELF.fetch(`${O}/api/wishes`, {
       method: 'POST', headers: { ...H, Authorization: `Bearer ${token}` },
       body: JSON.stringify({ wish: { title: '主人想要一個工具', nickname: '小明' } }),

@@ -654,6 +654,12 @@ async function openSheet(id) {
   add('想解決', w.problem); add('現況', w.current); add('期望', w.desired); add('誰會用', w.who)
   hv.appendChild(kv)
 
+  // 女神的整理筆記:引導對話中問到、五欄裝不下的細節(使用情境、偏好、取捨)—— 公開,給實作者
+  if (w.notes) {
+    hv.appendChild(el('p', 'sheet-label', '女神的整理筆記'))
+    hv.appendChild(el('p', 'hope goddess-notes', w.notes))
+  }
+
   hv.appendChild(el('p', 'sheet-label', `還缺什麼(${w.needs.length})`))
   if (w.needs.length) w.needs.forEach((n) => {
     const label = { info: '缺資訊', skill: '缺技能', resource: '缺資源' }[n.type] || '缺資訊'
@@ -996,6 +1002,10 @@ function renderPreview(r) {
     form.appendChild(oq)
   }
   if (r.difficulty) form.appendChild(el('div', 'need', `女神評的規模:${r.difficulty}`))
+  if (r.notes) {
+    const nt = el('div', 'need goddess-notes', '女神的整理筆記(會跟願望一起公開,給實作者看):\n' + r.notes)
+    form.appendChild(nt)
+  }
   if (r.gaps?.length) {
     form.appendChild(el('div', 'need', '女神列的實作缺口(會一起放進「還缺什麼」):' + r.gaps.map((g) => g.body).join('; ')))
   }
@@ -1020,7 +1030,8 @@ async function submitWish(form, r, submit) {
   if (!title) { alert('至少說說這個作品是什麼'); return }
   if (submit) submit.disabled = true   // 防連點造成重複送出
   const payload = {
-    wish: { title, problem: get('problem'), current: get('current'), desired: get('desired'), who: get('who'), nickname: get('nickname') || undefined, difficulty: r.difficulty || undefined },
+    // notes = 女神的整理筆記(公開,給實作者;五欄裝不下的使用情境/偏好/取捨)
+    wish: { title, problem: get('problem'), current: get('current'), desired: get('desired'), who: get('who'), nickname: get('nickname') || undefined, difficulty: r.difficulty || undefined, notes: r.notes || undefined },
     open_questions: r.open_questions || [],
     gaps: r.gaps || [],
     verdict: r.verdict, // 只有 AI final 且 ok 才會直接入池;純表單(無 verdict)進審核

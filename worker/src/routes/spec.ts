@@ -43,6 +43,8 @@ spec.get('/api/wishes/:id/spec', async (c) => {
     `- 期望:${w.desired || ''}`,
     `- 誰會用:${w.who || ''}`,
     '',
+    // 女神的整理筆記:引導對話中問到、五欄裝不下的細節(使用情境、偏好、取捨)
+    ...(w.notes ? ['## 女神的整理筆記(給實作者)', w.notes, ''] : []),
     '## 還缺什麼(含大家補的回答)',
     ...(w.needs.length
       ? w.needs.flatMap((n) => [

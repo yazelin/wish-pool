@@ -205,6 +205,8 @@ label.muted { display: block; font-size: .82rem; margin-bottom: 5px; }
 .sheet-label-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .sheet-label-row .sheet-label { flex: none; }
 .hope { color: #eadfc8; margin: 4px 0; }
+/* 女神的整理筆記:多段文字,保留 \n 分段 */
+.goddess-notes { white-space: pre-wrap; }
 .hope-list { margin: 4px 0 0; padding-left: 22px; color: #eadfc8; }
 .hope-list li { margin: 3px 0; }
 .sheet-actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 16px 0 4px; }

@@ -20,6 +20,18 @@ function mockTurnstileOk() {
     .intercept({ path: /siteverify/, method: 'POST' }).reply(200, { success: true }).persist()
 }
 
+// 女神伺服器端重審(簽章無效時)的 Groq mock;單次攔截器用完即棄(同 refine.route.test 的作法,
+// 避免 persist 攔截器在同一 test file 的 MockPool 內跨測試 FIFO 洩漏)
+function mockGroqReview(content: string) {
+  fetchMock.get('https://groq.test')
+    .intercept({ path: '/openai/v1/chat/completions', method: 'POST' })
+    .reply(200, { choices: [{ message: { content } }] })
+}
+function mockGroqDown() {
+  fetchMock.get('https://groq.test')
+    .intercept({ path: '/openai/v1/chat/completions', method: 'POST' }).reply(500, 'boom')
+}
+
 async function seed(status = 'published') {
   const { createWish } = await import('../src/lib/d1')
   return createWish(env.DB, {
@@ -29,7 +41,9 @@ async function seed(status = 'published') {
 }
 
 describe('POST /api/wishes', () => {
-  it('verdict ok WITH a valid signature -> published', async () => {
+  it('verdict ok WITH a valid signature -> published(且不呼叫重審 LLM)', async () => {
+    // 沒註冊 Groq 攔截器且 disableNetConnect:若走了重審,fetch 會炸 -> fallback pending;
+    // 所以 published 同時證明「簽章有效直接上牆、沒打 LLM」。
     mockTurnstileOk()
     const { signWish } = await import('../src/lib/sign')
     const wish = { title: '自動報價', problem: 'x', current: 'y', desired: 'z', who: 'w' }
@@ -44,17 +58,21 @@ describe('POST /api/wishes', () => {
     expect(j.status).toBe('published')
   })
 
-  it('verdict ok but NO signature (forged) -> pending', async () => {
+  it('verdict ok but NO signature (forged) -> 女神重審,判 review -> pending 且帶原因', async () => {
     mockTurnstileOk()
+    mockGroqReview('{"verdict":"review","reason":"與想要一個作品無關"}')
     const res = await SELF.fetch(`${O}/api/wishes`, {
       method: 'POST', headers: H,
       body: JSON.stringify({ turnstileToken: 't', verdict: 'ok', wish: { title: '直接偽造 ok' } }),
     })
-    expect((await res.json<{ status: string }>()).status).toBe('pending')
+    const j = await res.json<{ status: string; reason?: string }>()
+    expect(j.status).toBe('pending')
+    expect(j.reason).toBe('與想要一個作品無關')
   })
 
-  it('verdict ok but content edited after signing (sig mismatch) -> pending', async () => {
+  it('verdict ok but content edited after signing (sig mismatch) -> 女神重審,判 review -> pending', async () => {
     mockTurnstileOk()
+    mockGroqReview('{"verdict":"review","reason":"內容不當"}')
     const { signWish } = await import('../src/lib/sign')
     const sig = await signWish('test-sign-secret', { title: '原本無害', problem: 'p' }, 'ok', Math.floor(Date.now() / 1000) + 3600)
     const res = await SELF.fetch(`${O}/api/wishes`, {
@@ -64,8 +82,9 @@ describe('POST /api/wishes', () => {
     expect((await res.json<{ status: string }>()).status).toBe('pending')
   })
 
-  it('no verdict -> pending', async () => {
+  it('no verdict(純表單)-> 女神重審,判 review -> pending', async () => {
     mockTurnstileOk()
+    mockGroqReview('{"verdict":"review","reason":"拿不準"}')
     const res = await SELF.fetch(`${O}/api/wishes`, {
       method: 'POST', headers: H,
       body: JSON.stringify({ turnstileToken: 't', wish: { title: '純表單願望' } }),
@@ -110,7 +129,8 @@ describe('POST /api/wishes', () => {
     expect(got.difficulty).toBe('大')
     expect(got.needs.some((n: any) => n.type === 'resource' && n.body === '素材需原創')).toBe(true)
 
-    // 竄改 difficulty:驗簽失敗 -> pending
+    // 竄改 difficulty:驗簽失敗 -> 重審,判 review -> pending
+    mockGroqReview('{"verdict":"review","reason":"規模被改過"}')
     const res2 = await SELF.fetch(`${O}/api/wishes`, {
       method: 'POST', headers: H,
       body: JSON.stringify({ turnstileToken: 't', wish: { ...wish, difficulty: '小' }, verdict: 'ok', sig }),
@@ -120,6 +140,7 @@ describe('POST /api/wishes', () => {
 
   it('gaps and open_questions are each capped at 20 items, 500 chars per item', async () => {
     mockTurnstileOk()
+    mockGroqReview('{"verdict":"review","reason":"拿不準"}')
     const { getWish } = await import('../src/lib/d1')
     const gaps = Array.from({ length: 25 }, (_, i) => ({ type: 'resource', body: i === 0 ? 'x'.repeat(600) : `g${i}` }))
     const open_questions = Array.from({ length: 25 }, (_, i) => (i === 0 ? 'y'.repeat(600) : `q${i}`))
@@ -137,6 +158,70 @@ describe('POST /api/wishes', () => {
     for (const n of got.needs) expect(n.body.length).toBeLessThanOrEqual(500)
     expect(got.needs.find((n: any) => n.type === 'resource').body.length).toBe(500)
     expect(got.needs.find((n: any) => n.type === 'info').body.length).toBe(500)
+  })
+})
+
+describe('伺服器端重審(送出時簽章無效 -> 女神用同一套守則重審最終版內容)', () => {
+  it('欄位改過(sig mismatch)+ 重審判 ok -> 直接 published', async () => {
+    mockTurnstileOk()
+    mockGroqReview('{"verdict":"ok","reason":"改完仍是原創作品願望"}')
+    const { signWish } = await import('../src/lib/sign')
+    const sig = await signWish('test-sign-secret', { title: '原本的標題', problem: 'p' }, 'ok', Math.floor(Date.now() / 1000) + 3600)
+    const res = await SELF.fetch(`${O}/api/wishes`, {
+      method: 'POST', headers: H,
+      body: JSON.stringify({ turnstileToken: 't', verdict: 'ok', sig, wish: { title: '使用者補了細節的標題', problem: 'p' } }),
+    })
+    const j = await res.json<{ status: string; reason?: string }>()
+    expect(j.status).toBe('published')
+    expect(j.reason).toBeUndefined()
+  })
+
+  it('純手填(無 verdict/sig)也走重審,判 ok -> published', async () => {
+    mockTurnstileOk()
+    mockGroqReview('{"verdict":"ok","reason":"完整的作品願望"}')
+    const res = await SELF.fetch(`${O}/api/wishes`, {
+      method: 'POST', headers: H,
+      body: JSON.stringify({ turnstileToken: 't', wish: { title: '手填的原創工具願望', problem: 'p' } }),
+    })
+    expect((await res.json<{ status: string }>()).status).toBe('published')
+  })
+
+  it('LLM 掛掉(500)-> submit 仍 200,fallback pending 且帶原因', async () => {
+    mockTurnstileOk()
+    mockGroqDown()
+    const res = await SELF.fetch(`${O}/api/wishes`, {
+      method: 'POST', headers: H,
+      body: JSON.stringify({ turnstileToken: 't', wish: { title: '女神忙碌時的願望' } }),
+    })
+    expect(res.status).toBe(200)
+    const j = await res.json<{ status: string; reason?: string }>()
+    expect(j.status).toBe('pending')
+    expect(j.reason).toBe('女神一時忙不過來')
+  })
+
+  it('LLM 回垃圾(解析失敗)-> 一律當 review -> pending', async () => {
+    mockTurnstileOk()
+    mockGroqReview('抱歉我壞了,不會 JSON')
+    const res = await SELF.fetch(`${O}/api/wishes`, {
+      method: 'POST', headers: H,
+      body: JSON.stringify({ turnstileToken: 't', wish: { title: '解析失敗的願望' } }),
+    })
+    expect(res.status).toBe(200)
+    const j = await res.json<{ status: string; reason?: string }>()
+    expect(j.status).toBe('pending')
+  })
+
+  it('重審 ok 的 published 願望走完整上牆流程(公開端點看得到)', async () => {
+    mockTurnstileOk()
+    mockGroqReview('{"verdict":"ok","reason":"沒問題"}')
+    const res = await SELF.fetch(`${O}/api/wishes`, {
+      method: 'POST', headers: H,
+      body: JSON.stringify({ turnstileToken: 't', wish: { title: '重審上牆的願望' } }),
+    })
+    const j = await res.json<{ id: number; status: string }>()
+    expect(j.status).toBe('published')
+    const got = await SELF.fetch(`${O}/api/wishes/${j.id}`)
+    expect(got.status).toBe(200)
   })
 })
 

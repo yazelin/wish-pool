@@ -1012,6 +1012,16 @@ function renderPreview(r) {
   if (chatMessages.length) {
     form.appendChild(el('p', 'muted', '送出時,你與女神的對話會一併保存(僅站主可見,用來讓女神越來越會引導)'))
   }
+  // 送出前先講明白哪些情況會進待審(與後端伺服器端重審的三條守則、送出後的結果訊息同一套說法)
+  const notice = el('p', 'muted', [
+    '送出後女神會看過最終內容(改過欄位也會再看一次),通過就直接上牆。以下情況會先收進待審、由站主確認後上牆:',
+    '- 復刻現有作品,且堅持使用原作素材或名稱(版權)',
+    '- 幫既有工具/網站加功能(池子收的是還不存在的作品,建議去該專案的 GitHub Issues 提)',
+    '- 內容與「想要一個作品」無關',
+    '女神一時忙不過來或拿不準時,也會先收進待審。',
+  ].join('\n'))
+  notice.style.whiteSpace = 'pre-line'
+  form.appendChild(notice)
   const submit = el('button', 'primary', '投進池裡'); submit.style.marginTop = '8px'
   submit.onclick = () => submitWish(form, r, submit)
   form.appendChild(submit)
@@ -1050,10 +1060,14 @@ async function submitWish(form, r, submit) {
     watchWish(res.id, { t: 0, s: res.status, at: 0 })
     if (res.status === 'published') {
       pond.coin(innerWidth / 2, innerHeight * .45, () => {})
-      alert('你的願望已經落進池裡了。等等會幫你打開它 —— 之後回到這裡,有新實作或進度時你的願望會亮「有新進展」;想收 email 通知,可到它的討論串按 Subscribe(需 GitHub 帳號)')
+      alert('女神看過你的版本,直接上牆了。等等會幫你打開它 —— 之後回到這裡,有新實作或進度時你的願望會亮「有新進展」;想收 email 通知,可到它的討論串按 Subscribe(需 GitHub 帳號)')
       await loadPond()
       setTimeout(() => openSheet(res.id), 1800)   // 等自動開串一拍,打開時討論區就在
-    } else alert('已收到,站方看過後就會出現在池面上,謝謝。之後回到這裡,它上牆或有動靜時會亮「有新進展」')
+    } else {
+      // pending:後端會附一句原因(重審不過的守則 / 女神一時忙不過來)
+      const why = res.reason ? '(' + res.reason + ')' : ''
+      alert(`已收下,女神想請站主再看一眼${why}。站主確認後就會出現在池面上 —— 之後回到這裡,它上牆或有動靜時會亮「有新進展」`)
+    }
   } catch (e) {
     if (submit) submit.disabled = false
     alert(e.status === 429 ? '今天投的願望已達上限,明天再來' : '送出失敗,請稍後再試')

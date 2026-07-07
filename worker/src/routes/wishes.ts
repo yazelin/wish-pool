@@ -74,6 +74,8 @@ wishes.post('/api/wishes', async (c) => {
   const title = String(w.title ?? '').trim()
   if (!title) return c.json({ error: 'title_required' }, 400)
   const difficulty = DIFFICULTIES.includes(w.difficulty) ? String(w.difficulty) : undefined
+  // 女神的整理筆記(公開,給實作者);使用者可控輸入,截 4000 字防灌爆
+  const notes = typeof w.notes === 'string' && w.notes.trim() ? w.notes.trim().slice(0, 4000) : undefined
   // verdict:'ok' 只有在後端驗簽(/api/refine 簽的 sig,且內容未被改過)成立時才自動上牆;
   // 否則(偽造、改過、過期、純表單無 sig)一律進 pending 等 owner 審。
   let status = 'pending'
@@ -92,6 +94,7 @@ wishes.post('/api/wishes', async (c) => {
     // ponytail: gaps/open_questions 是使用者可控輸入,沒上限就逐筆 INSERT needs 會被灌爆;各截 20 筆、每筆截 500 字
     open_questions: Array.isArray(b.open_questions) ? b.open_questions.slice(0, 20).map((q: any) => String(q).slice(0, 500)) : [],
     difficulty,
+    notes,
     gaps: Array.isArray(b.gaps)
       ? b.gaps.slice(0, 20).map((g: any) => ({ type: g?.type, body: String(g?.body ?? '').slice(0, 500) }))
       : [],

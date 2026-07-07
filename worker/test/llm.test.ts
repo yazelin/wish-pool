@@ -65,6 +65,22 @@ describe('parseRefineResponse', () => {
     }
   })
 
+  it('parses notes when present', () => {
+    const r = parseRefineResponse(JSON.stringify({
+      mode: 'final', title: 'X', open_questions: [], verdict: 'ok', verdict_reason: '',
+      notes: '理想使用情境:早上通勤時打開看一眼\n偏好:介面越少字越好',
+    }))
+    expect(r.mode).toBe('final')
+    if (r.mode === 'final') expect(r.notes).toBe('理想使用情境:早上通勤時打開看一眼\n偏好:介面越少字越好')
+  })
+
+  it('missing notes -> empty string', () => {
+    const r = parseRefineResponse(JSON.stringify({
+      mode: 'final', title: 'X', open_questions: [], verdict: 'ok', verdict_reason: '',
+    }))
+    if (r.mode === 'final') expect(r.notes).toBe('')
+  })
+
   it('difficulty outside whitelist coerced to empty; missing gaps -> []', () => {
     const r = parseRefineResponse(JSON.stringify({
       mode: 'final', title: 'X', open_questions: [], verdict: 'ok', verdict_reason: '', difficulty: 'XL',

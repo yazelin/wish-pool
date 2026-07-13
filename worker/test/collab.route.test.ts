@@ -105,6 +105,38 @@ describe('answer a need (討論錨點)', () => {
     expect(w.needs.find((n: any) => n.id === nid).resolved).toBe(1)
     const ans = w.responses.find((r: any) => r.question_id === nid)
     expect(ans.body).toBe('純網頁就好')
+    const refinement = await SELF.fetch(`${O}/api/wishes/${id}/refinement`).then((r) => r.json<any>())
+    expect(refinement.version).toBe(2) // createNeed + legacy response each invalidate agent context
+    expect(refinement.needs.find((n: any) => n.id === nid).state).toBe('answered')
+    expect(refinement.next_action).toEqual({ kind: 'evaluate_answer', need_id: nid })
+  })
+
+  it('rejects a questionId from another wish without creating an orphan response', async () => {
+    mockTurnstileOk()
+    const { createWish, createNeed } = await import('../src/lib/d1')
+    const a = await createWish(env.DB, { title: 'A', status: 'published', open_questions: [] }, 1)
+    const b = await createWish(env.DB, { title: 'B', status: 'published', open_questions: [] }, 1)
+    const foreignNeed = await createNeed(env.DB, b, 'info', 'B 的問題')
+    const res = await SELF.fetch(`${O}/api/wishes/${a}/responses`, {
+      method: 'POST', headers: H,
+      body: JSON.stringify({ turnstileToken: 't', body: '錯掛回答', kind: 'answer', questionId: foreignNeed }),
+    })
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: 'bad_question_id' })
+    const count = await env.DB.prepare('SELECT COUNT(*) AS n FROM responses WHERE wish_id = ?').bind(a).first<{ n: number }>()
+    expect(count?.n).toBe(0)
+  })
+
+  it('keeps nested clarification replies visible in machine refinement context', async () => {
+    const { createWish, createNeed, addResponse } = await import('../src/lib/d1')
+    const id = await createWish(env.DB, { title: 'T', status: 'published', open_questions: [] }, 1)
+    const needId = await createNeed(env.DB, id, 'info', '需要離線嗎？')
+    const answer = await addResponse(env.DB, id, { body: '需要', kind: 'answer', questionId: needId }, 2)
+    await addResponse(env.DB, id, { body: '是完整離線，不只是快取', kind: 'answer', parentId: answer.id }, 3)
+    const refinement = await SELF.fetch(`${O}/api/wishes/${id}/refinement`).then((r) => r.json<any>())
+    expect(refinement.needs[0].answers[0].replies).toEqual([
+      expect.objectContaining({ body: '是完整離線，不只是快取' }),
+    ])
   })
 })
 

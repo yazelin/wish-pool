@@ -141,8 +141,9 @@ async function manageDetail(id, card) {
   box.appendChild(el('div', 'muted', '還缺什麼:'))
   ;(w.needs || []).forEach((n) => {
     const row = el('div', 'card-foot')
-    row.appendChild(el('span', null, `[${n.type}] ${n.body}` + (n.resolved ? ' (已解)' : '')))
-    if (!n.resolved) {
+    const state = n.state || (n.resolved ? 'resolved' : 'open')
+    row.appendChild(el('span', null, `[${n.type}] ${n.body} (${state})`))
+    if (!['resolved', 'superseded'].includes(state)) {
       const res = el('button', '', '標已解')
       res.onclick = async () => { await adminApi(`/api/admin/needs/${n.id}/resolve`, { method: 'POST' }); card.querySelector('.mdetail')?.remove(); manageDetail(id, card) }
       row.appendChild(res)

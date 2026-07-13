@@ -12,13 +12,18 @@ export type WishRow = {
   desired: string | null; who: string | null; nickname: string | null
   status: string; votes: number; created_at: number; accepted_answer_id: number | null
   echoes: number
+  activity_responses_count: number
   discussion_url: string | null
   difficulty: string | null
   notes: string | null
 }
 // 池面清單列:WishRow + 活動計數(站內通知「有新進展」徽章的資料來源,一次列表請求就能比對)
 export type WishListRow = WishRow & { answers_count: number; updates_count: number; needs_open: number; needs_total: number }
-export type Need = { id: number; type: string; body: string; resolved: number }
+export type Need = {
+  id: number; type: string; body: string; resolved: number; state: string
+  asked_of: string; priority: string; parent_need_id: number | null
+  source_response_id: number | null; created_at: number; updated_at: number
+}
 export type Update = { id: number; kind: string; body: string; github_handle: string | null; created_at: number }
 export type Answer = { id: number; repo_url: string; note: string | null; github_handle: string | null; votes: number; status: string; created_at: number }
 export type ResponseRow = {
@@ -49,12 +54,16 @@ export async function createWish(db: D1Database, w: NewWish, now: number): Promi
   for (const q of w.open_questions) {
     if (!q?.trim()) continue
     await db.prepare('INSERT INTO open_questions (wish_id, question) VALUES (?, ?)').bind(id, q).run()
-    await db.prepare("INSERT INTO needs (wish_id, type, body) VALUES (?, 'info', ?)").bind(id, q).run()
+    await db.prepare(
+      "INSERT INTO needs (wish_id, type, body, asked_of, priority, created_at, updated_at) VALUES (?, 'info', ?, 'requester', 'blocking', ?, ?)",
+    ).bind(id, q, now, now).run()
   }
   for (const g of w.gaps ?? []) {
     if (!g || typeof g.body !== 'string' || !g.body.trim()) continue
     const t = ['info', 'skill', 'resource'].includes(g.type) ? g.type : 'info'
-    await db.prepare('INSERT INTO needs (wish_id, type, body) VALUES (?, ?, ?)').bind(id, t, g.body.trim()).run()
+    await db.prepare(
+      'INSERT INTO needs (wish_id, type, body, asked_of, priority, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    ).bind(id, t, g.body.trim(), t === 'info' ? 'agent' : 'builder', 'blocking', now, now).run()
   }
   return id
 }
@@ -67,10 +76,11 @@ export async function listWishes(
   // answers_count 只算 visible(與詳情頁一致),updates/responses 全算 —— 前端「有新進展」用同一套口徑比對
   const { results } = await db.prepare(
     `SELECT ${WISH_PUBLIC_COLS},
-       (SELECT COUNT(*) FROM responses WHERE wish_id = wishes.id) AS echoes,
+       (SELECT COUNT(*) FROM responses WHERE wish_id = wishes.id AND kind != 'refinement') AS echoes,
+       (SELECT COUNT(*) FROM responses WHERE wish_id = wishes.id) AS activity_responses_count,
        (SELECT COUNT(*) FROM answers WHERE wish_id = wishes.id AND status = 'visible') AS answers_count,
        (SELECT COUNT(*) FROM updates WHERE wish_id = wishes.id) AS updates_count,
-       (SELECT COUNT(*) FROM needs WHERE wish_id = wishes.id AND resolved = 0) AS needs_open,
+       (SELECT COUNT(*) FROM needs WHERE wish_id = wishes.id AND refinement_state IN ('open','answered','assumed')) AS needs_open,
        (SELECT COUNT(*) FROM needs WHERE wish_id = wishes.id) AS needs_total
      FROM wishes WHERE wishes.status IN (${marks}) ORDER BY ${order} LIMIT ? OFFSET ?`,
   ).bind(...PUBLIC_STATUSES, opts.limit, opts.offset).all<WishListRow>()
@@ -78,9 +88,18 @@ export async function listWishes(
 }
 
 export async function getWish(db: D1Database, id: number): Promise<Wish | null> {
-  const row = await db.prepare(`SELECT ${WISH_PUBLIC_COLS}, (SELECT COUNT(*) FROM responses WHERE wish_id = wishes.id) AS echoes FROM wishes WHERE id = ?`).bind(id).first<WishRow>()
+  const row = await db.prepare(
+    `SELECT ${WISH_PUBLIC_COLS},
+       (SELECT COUNT(*) FROM responses WHERE wish_id = wishes.id AND kind != 'refinement') AS echoes,
+       (SELECT COUNT(*) FROM responses WHERE wish_id = wishes.id) AS activity_responses_count
+     FROM wishes WHERE id = ?`,
+  ).bind(id).first<WishRow>()
   if (!row) return null
-  const q = await db.prepare('SELECT id, type, body, resolved FROM needs WHERE wish_id = ? ORDER BY id').bind(id).all<Need>()
+  const q = await db.prepare(
+    `SELECT id, type, body, resolved, refinement_state AS state, asked_of, priority,
+            parent_need_id, source_response_id, created_at, updated_at
+     FROM needs WHERE wish_id = ? ORDER BY id`,
+  ).bind(id).all<Need>()
   const u = await db.prepare('SELECT id, kind, body, github_handle, created_at FROM updates WHERE wish_id = ? ORDER BY id').bind(id).all<Update>()
   const a = await db.prepare("SELECT id, repo_url, note, github_handle, votes, status, created_at FROM answers WHERE wish_id = ? AND status = 'visible' ORDER BY votes DESC, created_at DESC").bind(id).all<Answer>()
   const r = await db.prepare('SELECT id, question_id, parent_id, is_solution, body, nickname, kind, created_at FROM responses WHERE wish_id = ? ORDER BY id').bind(id).all<ResponseRow>()
@@ -150,13 +169,32 @@ export async function addResponse(
     if (parent) parentId = parent.parent_id ?? parent.id
   }
   const questionId = r.questionId ?? null
-  const res = await db.prepare(
-    'INSERT INTO responses (wish_id, question_id, parent_id, body, nickname, kind, created_at, agent_token_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-  ).bind(wishId, questionId, parentId, r.body, r.nickname ?? null, r.kind, now, r.agentTokenId ?? null).run()
+  if (questionId && !(await needBelongsToWish(db, wishId, questionId))) throw new Error('invalid_question_id')
+  const mutationKey = crypto.randomUUID()
+  const statements: D1PreparedStatement[] = [db.prepare(
+    `INSERT INTO responses
+       (wish_id, question_id, parent_id, body, nickname, kind, created_at, agent_token_id, mutation_key)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).bind(wishId, questionId, parentId, r.body, r.nickname ?? null, r.kind, now, r.agentTokenId ?? null, mutationKey)]
   if (questionId) {
-    await db.prepare('UPDATE needs SET resolved = 1 WHERE id = ? AND wish_id = ?').bind(questionId, wishId).run()
+    statements.push(db.prepare(
+      `UPDATE needs SET resolved = 1,
+         refinement_state = CASE WHEN refinement_state IN ('resolved','superseded') THEN refinement_state ELSE 'answered' END,
+         source_response_id = CASE WHEN refinement_state IN ('resolved','superseded') THEN source_response_id
+           ELSE (SELECT id FROM responses WHERE mutation_key = ?) END,
+         updated_at = ?
+       WHERE id = ? AND wish_id = ?`,
+    ).bind(mutationKey, now, questionId, wishId))
   }
-  return { id: res.meta.last_row_id as number, parentId, questionId }
+  statements.push(db.prepare('UPDATE wishes SET refinement_version = refinement_version + 1 WHERE id = ?').bind(wishId))
+  const results = await db.batch(statements)
+  return { id: results[0].meta.last_row_id as number, parentId, questionId }
+}
+
+export async function needBelongsToWish(db: D1Database, wishId: number, needId: number): Promise<boolean> {
+  const row = await db.prepare('SELECT 1 AS x FROM needs WHERE wish_id = ? AND id = ?')
+    .bind(wishId, needId).first<{ x: number }>()
+  return !!row
 }
 
 // 許願者標記「這則回答解決了我的問題」——與 needs.resolved(缺口自動已解)各自獨立的欄位。
@@ -168,7 +206,48 @@ export async function getResponseWithWish(
   return row ?? null
 }
 export async function setResponseSolution(db: D1Database, id: number, value: boolean): Promise<void> {
-  await db.prepare('UPDATE responses SET is_solution = ? WHERE id = ?').bind(value ? 1 : 0, id).run()
+  const row = await db.prepare('SELECT wish_id, question_id, is_solution FROM responses WHERE id = ?')
+    .bind(id).first<{ wish_id: number; question_id: number | null; is_solution: number }>()
+  if (!row) return
+  if (row.is_solution === (value ? 1 : 0)) return
+  const statements: D1PreparedStatement[] = [
+    db.prepare('UPDATE responses SET is_solution = ? WHERE id = ?').bind(value ? 1 : 0, id),
+  ]
+  if (row.question_id) {
+    statements.push(db.prepare(
+      `UPDATE needs SET
+         refinement_state = CASE WHEN EXISTS (
+           SELECT 1 FROM responses WHERE wish_id = ? AND question_id = ? AND is_solution = 1
+         ) THEN 'resolved'
+         WHEN refinement_state IN ('resolved','assumed') AND EXISTS (
+           SELECT 1 FROM responses WHERE id = needs.source_response_id AND basis IS NOT NULL
+         ) THEN refinement_state
+         ELSE 'answered' END,
+         source_response_id = CASE
+           WHEN EXISTS (
+             SELECT 1 FROM responses WHERE wish_id = ? AND question_id = ? AND is_solution = 1
+           ) THEN (
+             SELECT id FROM responses WHERE wish_id = ? AND question_id = ? AND is_solution = 1 ORDER BY id DESC LIMIT 1
+           )
+           WHEN refinement_state IN ('resolved','assumed') AND EXISTS (
+             SELECT 1 FROM responses WHERE id = needs.source_response_id AND basis IS NOT NULL
+           ) THEN source_response_id
+           ELSE COALESCE(
+             (SELECT id FROM responses WHERE wish_id = ? AND question_id = ? ORDER BY id DESC LIMIT 1),
+             source_response_id
+           )
+         END,
+         updated_at = ?
+       WHERE wish_id = ? AND id = ?`,
+    ).bind(
+      row.wish_id, row.question_id,
+      row.wish_id, row.question_id, row.wish_id, row.question_id,
+      row.wish_id, row.question_id,
+      Math.floor(Date.now() / 1000), row.wish_id, row.question_id,
+    ))
+  }
+  statements.push(db.prepare('UPDATE wishes SET refinement_version = refinement_version + 1 WHERE id = ?').bind(row.wish_id))
+  await db.batch(statements)
 }
 
 export async function listByStatus(db: D1Database, status: string): Promise<WishRow[]> {
@@ -183,9 +262,10 @@ export type AdminWishRow = WishRow & {
 }
 export async function listByStatusAdmin(db: D1Database, status: string): Promise<AdminWishRow[]> {
   const { results } = await db.prepare(`SELECT w.*,
-      (SELECT COUNT(*) FROM responses r WHERE r.wish_id = w.id) AS echoes,
+      (SELECT COUNT(*) FROM responses r WHERE r.wish_id = w.id AND r.kind != 'refinement') AS echoes,
+      (SELECT COUNT(*) FROM responses r WHERE r.wish_id = w.id) AS activity_responses_count,
       (SELECT COUNT(*) FROM needs n WHERE n.wish_id = w.id) AS needs_total,
-      (SELECT COUNT(*) FROM needs n WHERE n.wish_id = w.id AND n.resolved = 0) AS needs_open,
+      (SELECT COUNT(*) FROM needs n WHERE n.wish_id = w.id AND n.refinement_state IN ('open','answered','assumed')) AS needs_open,
       (SELECT COUNT(*) FROM updates u WHERE u.wish_id = w.id AND u.kind = 'claim') AS claims,
       (SELECT COUNT(*) FROM updates u WHERE u.wish_id = w.id) AS updates_count,
       (SELECT COUNT(*) FROM answers a WHERE a.wish_id = w.id AND a.status = 'visible') AS answers_count,
@@ -196,7 +276,7 @@ export async function listByStatusAdmin(db: D1Database, status: string): Promise
 }
 
 export async function setStatus(db: D1Database, id: number, status: string): Promise<void> {
-  await db.prepare('UPDATE wishes SET status = ? WHERE id = ?').bind(status, id).run()
+  await db.prepare('UPDATE wishes SET status = ?, refinement_version = refinement_version + 1 WHERE id = ?').bind(status, id).run()
 }
 
 export async function exportAll(db: D1Database): Promise<Wish[]> {
@@ -209,17 +289,54 @@ export async function exportAll(db: D1Database): Promise<Wish[]> {
   return out
 }
 
-export async function createNeed(db: D1Database, wishId: number, type: string, body: string): Promise<number> {
+export async function createNeed(
+  db: D1Database,
+  wishId: number,
+  type: string,
+  body: string,
+  opts: {
+    askedOf?: string; priority?: string; parentNeedId?: number; sourceResponseId?: number
+    agentTokenId?: number; now?: number; bumpVersion?: boolean
+  } = {},
+): Promise<number> {
   const t = ['info', 'skill', 'resource'].includes(type) ? type : 'info'
-  const res = await db.prepare('INSERT INTO needs (wish_id, type, body) VALUES (?, ?, ?)').bind(wishId, t, body).run()
-  return res.meta.last_row_id as number
+  const askedOf = ['requester', 'agent', 'builder'].includes(opts.askedOf ?? '')
+    ? opts.askedOf!
+    : (t === 'info' ? 'requester' : 'builder')
+  const priority = ['blocking', 'important', 'optional'].includes(opts.priority ?? '') ? opts.priority! : 'blocking'
+  const now = opts.now ?? Math.floor(Date.now() / 1000)
+  const insert = db.prepare(
+    `INSERT INTO needs
+       (wish_id, type, body, refinement_state, asked_of, priority, parent_need_id,
+        source_response_id, created_at, updated_at, agent_token_id)
+     VALUES (?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?)`,
+  ).bind(
+    wishId, t, body, askedOf, priority, opts.parentNeedId ?? null,
+    opts.sourceResponseId ?? null, now, now, opts.agentTokenId ?? null,
+  )
+  if (opts.bumpVersion === false) return (await insert.run()).meta.last_row_id as number
+  const results = await db.batch([
+    insert,
+    db.prepare('UPDATE wishes SET refinement_version = refinement_version + 1 WHERE id = ?').bind(wishId),
+  ])
+  return results[0].meta.last_row_id as number
 }
 export async function listNeeds(db: D1Database, wishId: number): Promise<Need[]> {
-  const { results } = await db.prepare('SELECT id, type, body, resolved FROM needs WHERE wish_id = ? ORDER BY id').bind(wishId).all<Need>()
+  const { results } = await db.prepare(
+    `SELECT id, type, body, resolved, refinement_state AS state, asked_of, priority,
+            parent_need_id, source_response_id, created_at, updated_at
+     FROM needs WHERE wish_id = ? ORDER BY id`,
+  ).bind(wishId).all<Need>()
   return results
 }
 export async function resolveNeed(db: D1Database, id: number): Promise<void> {
-  await db.prepare('UPDATE needs SET resolved = 1 WHERE id = ?').bind(id).run()
+  const row = await db.prepare('SELECT wish_id FROM needs WHERE id = ?').bind(id).first<{ wish_id: number }>()
+  if (!row) return
+  await db.batch([
+    db.prepare("UPDATE needs SET resolved = 1, refinement_state = 'resolved', updated_at = ? WHERE id = ?")
+      .bind(Math.floor(Date.now() / 1000), id),
+    db.prepare('UPDATE wishes SET refinement_version = refinement_version + 1 WHERE id = ?').bind(row.wish_id),
+  ])
 }
 
 const UPDATE_KINDS = ['claim', 'progress', 'blocked']
@@ -274,7 +391,7 @@ export async function acceptAnswer(db: D1Database, wishId: number, answerId: num
 // 硬刪除:連子表一起清(表名來自固定陣列,非 user input)。
 export async function deleteWish(db: D1Database, id: number): Promise<void> {
   await db.prepare('DELETE FROM answer_votes WHERE answer_id IN (SELECT id FROM answers WHERE wish_id = ?)').bind(id).run()
-  for (const t of ['answers', 'updates', 'needs', 'votes', 'responses', 'open_questions']) {
+  for (const t of ['refinement_rounds', 'answers', 'updates', 'needs', 'votes', 'responses', 'open_questions']) {
     await db.prepare(`DELETE FROM ${t} WHERE wish_id = ?`).bind(id).run()
   }
   await db.prepare('DELETE FROM wishes WHERE id = ?').bind(id).run()
@@ -288,7 +405,7 @@ export async function setDiscussionUrl(db: D1Database, id: number, url: string):
 // done 不自動 —— 成真由站長「採用」把關(池規)。
 export async function autoAdoptIfHot(db: D1Database, id: number, threshold = 3): Promise<{ promoted: boolean; discussion_url: string | null }> {
   const row = await db.prepare(
-    `SELECT status, votes, discussion_url, (SELECT COUNT(*) FROM responses r WHERE r.wish_id = wishes.id) AS echoes FROM wishes WHERE id = ?`,
+    `SELECT status, votes, discussion_url, (SELECT COUNT(*) FROM responses r WHERE r.wish_id = wishes.id AND r.kind != 'refinement') AS echoes FROM wishes WHERE id = ?`,
   ).bind(id).first<{ status: string; votes: number; discussion_url: string | null; echoes: number }>()
   if (!row || row.status !== 'published' || row.votes + row.echoes < threshold) return { promoted: false, discussion_url: null }
   await db.prepare("UPDATE wishes SET status = 'adopted' WHERE id = ? AND status = 'published'").bind(id).run()

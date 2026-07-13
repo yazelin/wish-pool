@@ -3,6 +3,7 @@ import type { Env } from '../env'
 import {
   createWish, listWishes, getWish, publicWishExists, addVote, addResponse, PUBLIC_STATUSES,
   getResponseWithWish, setResponseSolution,
+  needBelongsToWish,
 } from '../lib/d1'
 import { verifyTurnstile } from '../lib/turnstile'
 import { checkAndBump, hashIp } from '../lib/ratelimit'
@@ -164,9 +165,13 @@ wishes.post('/api/wishes/:id/responses', async (c) => {
   const body = String(b.body ?? '').trim()
   if (!body) return c.json({ error: 'body_required' }, 400)
   const kind = b.kind === 'metoo' ? 'metoo' : 'answer'
+  const questionId = b.questionId == null ? undefined : Number(b.questionId)
+  if (questionId != null && (!Number.isInteger(questionId) || !(await needBelongsToWish(c.env.DB, id, questionId)))) {
+    return c.json({ error: 'bad_question_id' }, 400)
+  }
   const r = await addResponse(c.env.DB, id, {
     body, nickname: b.nickname, kind,
-    questionId: b.questionId ? Number(b.questionId) : undefined,
+    questionId,
     parentId: b.parentId ? Number(b.parentId) : undefined,
     agentTokenId: (c as any).get('atokId') ?? undefined,
   }, Math.floor(Date.now() / 1000))

@@ -56,7 +56,9 @@ describe('admin ops', () => {
   it('export returns all incl pending', async () => {
     await seed('pending'); await seed('published')
     const res = await SELF.fetch(`${O}/api/admin/export`, { headers: AUTH })
-    expect((await res.json<any[]>()).length).toBe(2)
+    const exported = await res.json<any[]>()
+    expect(exported.length).toBe(2)
+    expect(exported.every((wish) => wish.refinement?.protocol_version === 1)).toBe(true)
   })
 })
 

@@ -28,14 +28,27 @@ describe('清單活動計數(「有新進展」徽章的觸發條件)', () => {
     mockTurnstileOk()
     const id = await seed()
     let row = await listRow(id)
-    expect([row.answers_count, row.updates_count, row.echoes]).toEqual([0, 0, 0])
+    expect([row.answers_count, row.updates_count, row.echoes, row.activity_responses_count]).toEqual([0, 0, 0, 0])
 
     await SELF.fetch(`${O}/api/wishes/${id}/answers`, { method: 'POST', headers: A, body: JSON.stringify({ repo_url: 'https://github.com/x/a' }) })
     await SELF.fetch(`${O}/api/wishes/${id}/updates`, { method: 'POST', headers: A, body: JSON.stringify({ kind: 'progress', body: '做到一半' }) })
     await SELF.fetch(`${O}/api/wishes/${id}/responses`, { method: 'POST', headers: H, body: JSON.stringify({ turnstileToken: 't', body: '我也想要', kind: 'metoo' }) })
 
     row = await listRow(id)
-    expect([row.answers_count, row.updates_count, row.echoes]).toEqual([1, 1, 1])
+    expect([row.answers_count, row.updates_count, row.echoes, row.activity_responses_count]).toEqual([1, 1, 1, 1])
+  })
+
+  it('agent refinement 回覆算活動但不算社群共鳴', async () => {
+    const id = await seed()
+    await env.DB.prepare(
+      "INSERT INTO responses (wish_id, body, kind, created_at) VALUES (?, 'agent answer', 'refinement', 2)",
+    ).bind(id).run()
+
+    const row = await listRow(id)
+    expect(row.echoes).toBe(0)
+    expect(row.activity_responses_count).toBe(1)
+    const detail = await SELF.fetch(`${O}/api/wishes/${id}`).then((r) => r.json<any>())
+    expect(detail.activity_responses_count).toBe(1)
   })
 
   it('被隱藏的實作不計入 answers_count(與詳情頁口徑一致)', async () => {
@@ -57,7 +70,7 @@ describe('清單活動計數(「有新進展」徽章的觸發條件)', () => {
 })
 
 describe('公開欄位契約(隱私欄位不外洩)', () => {
-  const WISH_KEYS = ['id', 'title', 'problem', 'current', 'desired', 'who', 'nickname', 'status', 'votes', 'created_at', 'accepted_answer_id', 'discussion_url', 'difficulty', 'notes', 'echoes'].sort()
+  const WISH_KEYS = ['id', 'title', 'problem', 'current', 'desired', 'who', 'nickname', 'status', 'votes', 'created_at', 'accepted_answer_id', 'discussion_url', 'difficulty', 'notes', 'echoes', 'activity_responses_count'].sort()
 
   it('GET /api/wishes 每列只含白名單欄位 + 活動計數', async () => {
     const id = await seed()
@@ -77,6 +90,9 @@ describe('公開欄位契約(隱私欄位不外洩)', () => {
     expect(Object.keys(w.answers[0]).sort()).toEqual(['id', 'repo_url', 'note', 'github_handle', 'votes', 'status', 'created_at'].sort())
     expect(Object.keys(w.updates[0]).sort()).toEqual(['id', 'kind', 'body', 'github_handle', 'created_at'].sort())
     expect(Object.keys(w.responses[0]).sort()).toEqual(['id', 'question_id', 'parent_id', 'is_solution', 'body', 'nickname', 'kind', 'created_at'].sort())
-    expect(Object.keys(w.needs[0]).sort()).toEqual(['id', 'type', 'body', 'resolved'].sort())
+    expect(Object.keys(w.needs[0]).sort()).toEqual([
+      'id', 'type', 'body', 'resolved', 'state', 'asked_of', 'priority',
+      'parent_need_id', 'source_response_id', 'created_at', 'updated_at',
+    ].sort())
   })
 })

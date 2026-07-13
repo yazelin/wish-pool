@@ -28,12 +28,12 @@ function getWatch() {
 }
 function setWatch(w) { try { localStorage.setItem(WATCH_KEY, JSON.stringify(w)) } catch (e) { /* ignore */ } }
 function watchWish(id, seen) { const w = getWatch(); if (seen || w[id] == null) w[id] = seen || { t: 0 }; setWatch(w) }
-function activityTotal(w) { return (w.answers?.length || 0) + (w.updates?.length || 0) + (w.responses?.length || 0) }
+function activityTotal(w) { return (w.answers?.length || 0) + (w.updates?.length || 0) + (w.activity_responses_count ?? w.responses?.length ?? 0) + (w.needs?.length || 0) }
 // 清單列(帶計數)與詳情(帶陣列)同一套口徑
-function activityTotalRow(w) { return (w.answers_count || 0) + (w.updates_count || 0) + (w.echoes || 0) }
+function activityTotalRow(w) { return (w.answers_count || 0) + (w.updates_count || 0) + (w.activity_responses_count ?? w.echoes ?? 0) + (w.needs_total || 0) }
 function lastActivityAt(w) {
   let m = 0
-  ;[...(w.answers || []), ...(w.updates || []), ...(w.responses || [])].forEach((x) => { if (x.created_at > m) m = x.created_at })
+  ;[...(w.answers || []), ...(w.updates || []), ...(w.responses || []), ...(w.needs || [])].forEach((x) => { if (x.created_at > m) m = x.created_at })
   return m
 }
 function isFresh(seen, total, status) { return total > (seen.t || 0) || (seen.s != null && status !== seen.s) }
@@ -663,8 +663,11 @@ async function openSheet(id) {
   hv.appendChild(el('p', 'sheet-label', `還缺什麼(${w.needs.length})`))
   if (w.needs.length) w.needs.forEach((n) => {
     const label = { info: '缺資訊', skill: '缺技能', resource: '缺資源' }[n.type] || '缺資訊'
-    const wrap = el('div', 'need' + (n.resolved ? ' resolved' : ''))
-    wrap.appendChild(el('div', null, `[${label}] ${n.body}`))
+    const state = n.state || (n.resolved ? 'resolved' : 'open')
+    const stateText = { answered: '已有候選回答,待確認', assumed: 'Agent 假設,可修正', resolved: '已解決', superseded: '已取代' }[state]
+    const closed = state === 'resolved' || state === 'superseded'
+    const wrap = el('div', 'need ' + state)
+    wrap.appendChild(el('div', null, `[${label}] ${n.body}${stateText ? ` (${stateText})` : ''}`))
     // 掛在這個缺口下的回答(含各自的巢狀回覆/標記已解答 —— issue #7)
     w.responses.filter((r) => r.question_id === n.id && !r.parent_id).forEach((r) => {
       const a = el('div', 'need-answer' + (r.is_solution ? ' solved' : ''))
@@ -673,8 +676,8 @@ async function openSheet(id) {
       a.appendChild(renderResponseExtras(r, w, tagNew))
       wrap.appendChild(a)
     })
-    if (!n.resolved) {
-      const ab = el('button', 'need-reply', '回答這題')
+    if (!closed) {
+      const ab = el('button', 'need-reply', state === 'open' ? '回答這題' : '補充 / 確認這題')
       ab.onclick = () => answerNeed(w.id, n.id)
       wrap.appendChild(ab)
     }

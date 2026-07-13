@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import type { Env } from '../env'
 import { listByStatus, listByStatusAdmin, setStatus, exportAll, setAnswerStatus, acceptAnswer, resolveNeed, answerExists, deleteWish, getWish, getWishAdmin, setDiscussionUrl } from '../lib/d1'
 import { createWishDiscussion, notifyDiscussion } from '../lib/github'
+import { getRefinementContext } from '../lib/refinement'
 
 const STATUSES = ['pending', 'published', 'adopted', 'building', 'done', 'hidden']
 
@@ -57,7 +58,13 @@ admin.post('/api/admin/wishes/:id/status', async (c) => {
   return c.json({ ok: true })
 })
 
-admin.get('/api/admin/export', async (c) => c.json(await exportAll(c.env.DB)))
+admin.get('/api/admin/export', async (c) => {
+  const wishes = await exportAll(c.env.DB)
+  return c.json(await Promise.all(wishes.map(async (wish) => ({
+    ...wish,
+    refinement: await getRefinementContext(c.env.DB, wish.id, { includePrivate: true }),
+  }))))
+})
 
 admin.post('/api/admin/answers/:id/status', async (c) => {
   const b = await c.req.json().catch(() => ({}))

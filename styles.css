@@ -84,6 +84,9 @@ button.sort.active { background: var(--surface-3); color: var(--amber-soft); }
 .need.resolved { border-left-color: rgba(74,222,128,.55); background: rgba(74,222,128,.04); }
 .need.resolved > div:first-child { opacity: .55; text-decoration: line-through; }
 .need.resolved .need-answer { opacity: 1; text-decoration: none; }
+.need.answered { border-left-color: rgba(250,204,21,.65); background: rgba(250,204,21,.04); }
+.need.assumed { border-left-color: rgba(56,189,248,.65); background: rgba(56,189,248,.04); }
+.need.superseded > div:first-child { opacity: .55; text-decoration: line-through; }
 .update { padding: 7px 0; font-size: .92rem; border-bottom: 1px dashed var(--border-soft); }
 .update-kind { font: 600 .7rem var(--sans); padding: 2px 9px; border-radius: 999px; background: var(--surface-3); color: var(--muted); margin-right: 4px; }
 .update-kind.claim { color: var(--amber-soft); } .update-kind.blocked { color: var(--danger); }

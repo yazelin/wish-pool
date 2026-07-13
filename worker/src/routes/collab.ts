@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Env } from '../env'
-import { publicWishExists, createAnswer, addAnswerVote, publicAnswerExists, addUpdate, createNeed, autoBuildOnClaim } from '../lib/d1'
+import { publicWishExists, createAnswer, addAnswerVote, publicAnswerExists, addUpdate, createNeed, autoBuildOnClaim, needBelongsToWish } from '../lib/d1'
 import { verifyTurnstile } from '../lib/turnstile'
 import { checkAndBump, hashIp } from '../lib/ratelimit'
 import { checkAgentBearer } from '../lib/agent-auth'
@@ -80,6 +80,16 @@ collab.post('/api/wishes/:id/needs', async (c) => {
   const blocked = await guard(c, b.turnstileToken, 'need', 30); if (blocked) return blocked
   if (!Number.isInteger(id) || !(await publicWishExists(c.env.DB, id))) return c.json({ error: 'not_found' }, 404)
   const body = String(b.body ?? '').trim(); if (!body) return c.json({ error: 'body_required' }, 400)
-  const nid = await createNeed(c.env.DB, id, String(b.type ?? 'info'), body)
+  const parentNeedId = b.parent_need_id == null ? undefined : Number(b.parent_need_id)
+  if (parentNeedId != null && (!Number.isInteger(parentNeedId) || !(await needBelongsToWish(c.env.DB, id, parentNeedId)))) {
+    return c.json({ error: 'bad_parent_need_id' }, 400)
+  }
+  const nid = await createNeed(c.env.DB, id, String(b.type ?? 'info'), body, {
+    askedOf: b.asked_of,
+    priority: b.priority,
+    parentNeedId,
+    agentTokenId: (c as any).get('atokId'),
+    now: Math.floor(Date.now() / 1000),
+  })
   return c.json({ id: nid })
 })

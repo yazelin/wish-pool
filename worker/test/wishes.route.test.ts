@@ -378,7 +378,7 @@ describe('GET /api/wishes/:id/spec', () => {
     const res = await SELF.fetch(`${O}/api/wishes/${id}/spec`)
     expect(res.status).toBe(200)
     const t = await res.text()
-    for (const frag of ['# 願望 #', '網頁還是 App?', '答:網頁(發呆)', '希望有深色模式', 'claim: 我來', 'https://github.com/x/a']) {
+    for (const frag of ['# 願望 #', 'Agent 規格收斂狀態', `need #${nid}`, 'answered', '答 #', '網頁(發呆)', '希望有深色模式', 'claim: 我來', 'https://github.com/x/a']) {
       expect(t).toContain(frag)
     }
   })

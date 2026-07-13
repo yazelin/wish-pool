@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import type { Env } from '../env'
 import { getWish, PUBLIC_STATUSES } from '../lib/d1'
+import { getRefinementContext } from '../lib/refinement'
 
 // 完整規格書(markdown):站內全部資料 + GitHub 討論串內容(有 GH_PAT 才拿得到)。
 // 單一事實來源 —— 前端「下載規格」與 agent 都吃這個端點。
@@ -31,13 +32,15 @@ spec.get('/api/wishes/:id/spec', async (c) => {
   if (!Number.isInteger(id)) return c.text('not found', 404)
   const w = await getWish(c.env.DB, id)
   if (!w || !PUBLIC_STATUSES.includes(w.status)) return c.text('not found', 404)
+  const refinement = await getRefinementContext(c.env.DB, id)
+  const refinedNeeds = new Map((refinement?.needs ?? []).map((n) => [n.id, n]))
   const nick = (n: string | null) => (n ? `(${n})` : '')
   const L: string[] = [
     `# 願望 #${w.id}:${w.title}`,
     '',
     `- 狀態:${PHRASE[w.status] || w.status}${w.nickname ? ` · 許願者:${w.nickname}` : ''}`,
     ...(w.difficulty ? [`- 規模:${w.difficulty}`] : []),
-    `- 社群訊號:許願幣 ${w.votes} · 共鳴/留言 ${w.responses.length}`,
+    `- 社群訊號:許願幣 ${w.votes} · 共鳴/留言 ${w.echoes}`,
     `- 想解決:${w.problem || ''}`,
     `- 現況:${w.current || ''}`,
     `- 期望:${w.desired || ''}`,
@@ -45,15 +48,30 @@ spec.get('/api/wishes/:id/spec', async (c) => {
     '',
     // 女神的整理筆記:引導對話中問到、五欄裝不下的細節(使用情境、偏好、取捨)
     ...(w.notes ? ['## 女神的整理筆記(給實作者)', w.notes, ''] : []),
+    '## Agent 規格收斂狀態',
+    `- 協定版本:${refinement?.protocol_version ?? 1}`,
+    `- 規格版本:${refinement?.version ?? 0}`,
+    `- 成熟度:${refinement?.spec_state ?? 'refining'}`,
+    `- 規格可定稿:${refinement?.spec_ready ? '是' : '否'}`,
+    `- 可開始實作:${refinement?.implementation_ready ? '是' : '否'}`,
+    `- 下一步:${JSON.stringify(refinement?.next_action ?? { kind: 'draft_spec' })}`,
+    '',
+    ...(refinement?.structured_spec
+      ? ['## 最新結構化規格', '```json', JSON.stringify(refinement.structured_spec, null, 2), '```', '']
+      : []),
     '## 還缺什麼(含大家補的回答)',
     ...(w.needs.length
-      ? w.needs.flatMap((n) => [
-          `- [${n.resolved ? 'x' : ' '}] (${n.type}) ${n.body}`,
+      ? w.needs.flatMap((n) => {
+          const rn = refinedNeeds.get(n.id)
+          const state = rn?.state ?? (n.resolved ? 'answered' : 'open')
+          const mark = ['resolved', 'assumed', 'superseded'].includes(state) ? 'x' : ' '
+          return [
+          `- [${mark}] need #${n.id} (${n.type}; ${state}; ask:${rn?.asked_of ?? 'requester'}; ${rn?.priority ?? 'blocking'}) ${n.body}${rn?.parent_need_id ? ` ← need #${rn.parent_need_id}` : ''}`,
           ...w.responses.filter((r) => r.question_id === n.id && !r.parent_id).flatMap((r) => [
-            `  - 答:${r.body}${nick(r.nickname)}${r.is_solution ? ' [許願者標記已解答]' : ''}`,
+            `  - 答 #${r.id}:${r.body}${nick(r.nickname)}${r.is_solution ? ' [許願者標記已解答]' : ''}`,
             ...w.responses.filter((x) => x.parent_id === r.id).map((x) => `    - 回覆:${x.body}${nick(x.nickname)}`),
           ]),
-        ])
+        ]})
       : ['(無)']),
     '',
   ]

@@ -47,6 +47,13 @@ describe('公開寫入端點同口徑(對 hidden/pending 的 200 會變成存在
         [`/api/wishes/${id}/answers`, { repo_url: 'https://github.com/x/a' }],
         [`/api/wishes/${id}/updates`, { kind: 'progress', body: 'x' }],
         [`/api/wishes/${id}/needs`, { type: 'info', body: 'x' }],
+        [`/api/wishes/${id}/refinement/rounds`, {
+          idempotency_key: `hidden-${id}`, base_version: 0,
+          assessment: {
+            decision: 'needs_human', summary: 'x',
+            checklist: { goal: false, users: false, mvp_scope: false, primary_flow: false, acceptance: false, constraints: false, safety: false },
+          },
+        }],
       ]
       for (const [path, body] of calls) {
         const res = await SELF.fetch(`${O}${path}`, { method: 'POST', headers: A, body: JSON.stringify(body) })

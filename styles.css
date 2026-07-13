@@ -327,3 +327,13 @@ html.theme-day body { background:
 .star.fresh .star-dot { animation: starPulseFresh 1.4s ease-in-out infinite; }
 @keyframes starPulseFresh { 0%,100% { box-shadow: 0 0 10px 3px rgba(244,181,58,.6); } 50% { box-shadow: 0 0 18px 7px rgba(244,181,58,.95); } }
 .sub-hint { font-size: .85rem; margin: -2px 0 10px; }
+
+/* ============ 感謝名單(credits,footer 上方) ============ */
+.credits { margin: 48px 0 0; text-align: center; }
+.credits-title { font-size: .95rem; color: var(--muted); margin: 0 0 18px; }
+.credits-cols { display: flex; justify-content: center; gap: 28px 40px; flex-wrap: wrap; }
+.credits-col { min-width: 220px; max-width: 460px; flex: 1 1 260px; }
+.credits-col h3 { font-size: .8rem; color: var(--muted); margin: 0 0 10px; letter-spacing: .04em; font-weight: 600; }
+.credits-chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.credits-chips a.badge { text-decoration: none; }
+.credits-note { font-size: .75rem; margin-top: 8px; }

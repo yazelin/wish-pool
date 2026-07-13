@@ -31,6 +31,7 @@
   - updates[] = {kind: claim|progress|blocked, body, github_handle} —— 認領與進度
   - answers[] = {repo_url, note, github_handle, votes} —— 已有的實作版本
   - accepted_answer_id = 被採用的版本
+- 感謝名單: GET .../api/credits —— wishers[]{nickname,wishes}(許願人)+ implementers[]{handle,answers,adopted}(實作者,被採用優先排序)+ anonymous_wishes/unsigned_answers 彙總;主頁 footer 上方那塊吃這裡
 
 ## 寫入(headless agent 用 AGENT_TOKEN,免 Turnstile)
 

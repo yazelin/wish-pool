@@ -912,6 +912,37 @@ loadPond().then(() => {
   if (m) openSheet(Number(m[1]))
 })
 
+/* ============ 感謝名單(footer 上方;載不到或全空就保持隱藏) ============ */
+async function loadCredits() {
+  try {
+    const d = await api('/api/credits')
+    const fill = (rootSel, items, mkChip, noteText) => {
+      const root = $(rootSel)
+      const chips = root.querySelector('.credits-chips')
+      const note = root.querySelector('.credits-note')
+      items.forEach((it) => chips.appendChild(mkChip(it)))
+      if (noteText) { note.textContent = noteText; note.hidden = false }
+      const has = items.length > 0 || !!noteText
+      root.hidden = !has
+      return has
+    }
+    const hasW = fill('#credits-wishers', d.wishers, (w) => {
+      const s = el('span', 'badge', w.nickname)
+      s.title = `許下 ${w.wishes} 個願望`
+      return s
+    }, d.anonymous_wishes > 0 ? `以及 ${d.anonymous_wishes} 則匿名願望` : '')
+    const hasI = fill('#credits-implementers', d.implementers, (p) => {
+      const a = ghLink(p.handle)   // 既有 helper:handle 格式驗證+noopener nofollow,壞格式退純文字
+      a.classList.add('badge')
+      if (p.adopted > 0) a.textContent = '★ ' + a.textContent
+      a.title = `交出 ${p.answers} 份實作` + (p.adopted > 0 ? `,${p.adopted} 份被採用` : '')
+      return a
+    }, d.unsigned_answers > 0 ? `以及 ${d.unsigned_answers} 份未署名實作` : '')
+    $('#credits').hidden = !(hasW || hasI)
+  } catch (e) { /* 感謝名單非關鍵路徑,失敗不打擾 */ }
+}
+loadCredits()
+
 /* ============ 投下一個願望(AI 引導聊天 modal,沿用) ============ */
 const modal = $('#wish-modal')
 const modalInner = $('#wish-modal-inner')

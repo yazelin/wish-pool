@@ -388,6 +388,27 @@ export async function setAnswerStatus(db: D1Database, id: number, status: string
 export async function acceptAnswer(db: D1Database, wishId: number, answerId: number): Promise<void> {
   await db.prepare("UPDATE wishes SET accepted_answer_id = ?, status = 'done' WHERE id = ?").bind(answerId, wishId).run()
 }
+// 感謝名單原始列(公開願望暱稱 + visible answers 的 handle):公開/visible 過濾集中在這裡,
+// 與 listWishes/publicAnswerExists 同口徑;batch 一趟拿兩組;ORDER BY 帶 id 保完全決定性。
+export async function creditsRows(db: D1Database): Promise<{
+  wishRows: { nickname: string | null }[]
+  answerRows: { handle: string | null; adopted: number | null }[]
+}> {
+  const marks = PUBLIC_STATUSES.map(() => '?').join(',')
+  const [w, a] = await db.batch([
+    db.prepare(`SELECT nickname FROM wishes WHERE status IN (${marks}) ORDER BY created_at, id`).bind(...PUBLIC_STATUSES),
+    db.prepare(
+      `SELECT a.github_handle AS handle, (a.id = w.accepted_answer_id) AS adopted
+         FROM answers a JOIN wishes w ON w.id = a.wish_id
+        WHERE a.status = 'visible' AND w.status IN (${marks})
+        ORDER BY a.created_at, a.id`,
+    ).bind(...PUBLIC_STATUSES),
+  ])
+  return {
+    wishRows: (w.results ?? []) as { nickname: string | null }[],
+    answerRows: (a.results ?? []) as { handle: string | null; adopted: number | null }[],
+  }
+}
 // 硬刪除:連子表一起清(表名來自固定陣列,非 user input)。
 export async function deleteWish(db: D1Database, id: number): Promise<void> {
   await db.prepare('DELETE FROM answer_votes WHERE answer_id IN (SELECT id FROM answers WHERE wish_id = ?)').bind(id).run()

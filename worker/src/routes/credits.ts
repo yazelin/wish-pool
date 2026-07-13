@@ -1,22 +1,20 @@
 import { Hono } from 'hono'
 import type { Env } from '../env'
-import { PUBLIC_STATUSES } from '../lib/d1'
+import { creditsRows } from '../lib/d1'
 
 // 感謝名單:靈感(公開願望的暱稱)與實現(visible answers 的 github_handle)聚合。
-// 資料量小,SQL 只撈原始列、聚合在 TS 做;列已按 created_at 排,穩定排序天然保「首次出現先」。
+// 資料量小,聚合在 TS 做;列已按 created_at,id 排,穩定排序保「首次出現先」且完全決定性。
+// edge cache 走 caches.default(og.ts 同款)—— Worker 回應光設 header 不會進 Cloudflare cache。
 export const credits = new Hono<{ Bindings: Env }>()
 
+const CACHE_KEY = 'https://credits-cache.wish-pool.local/v1'
+
 credits.get('/api/credits', async (c) => {
-  const marks = PUBLIC_STATUSES.map(() => '?').join(',')
-  const { results: wishRows } = await c.env.DB.prepare(
-    `SELECT nickname FROM wishes WHERE status IN (${marks}) ORDER BY created_at`,
-  ).bind(...PUBLIC_STATUSES).all<{ nickname: string | null }>()
-  const { results: answerRows } = await c.env.DB.prepare(
-    `SELECT a.github_handle AS handle, (a.id = w.accepted_answer_id) AS adopted
-       FROM answers a JOIN wishes w ON w.id = a.wish_id
-      WHERE a.status = 'visible' AND w.status IN (${marks})
-      ORDER BY a.created_at`,
-  ).bind(...PUBLIC_STATUSES).all<{ handle: string | null; adopted: number | null }>()
+  const cache = caches.default
+  const hit = await cache.match(CACHE_KEY)
+  if (hit) return new Response(hit.body, hit)   // 快取回應 headers 不可變,複本讓 cors middleware 可寫
+
+  const { wishRows, answerRows } = await creditsRows(c.env.DB)
 
   const wishers = new Map<string, { nickname: string; wishes: number }>()
   let anonymousWishes = 0
@@ -40,10 +38,13 @@ credits.get('/api/credits', async (c) => {
   }
 
   c.header('Cache-Control', 'public, max-age=60, s-maxage=600')
-  return c.json({
+  const res = c.json({
     wishers: [...wishers.values()].sort((a, b) => b.wishes - a.wishes),
     anonymous_wishes: anonymousWishes,
     implementers: [...implementers.values()].sort((a, b) => (b.adopted - a.adopted) || (b.answers - a.answers)),
     unsigned_answers: unsignedAnswers,
   })
+  // 空池不入快取:剛上線/剛清空時別把「沒有人」釘住 10 分鐘
+  if (wishRows.length || answerRows.length) c.executionCtx.waitUntil(cache.put(CACHE_KEY, res.clone()))
+  return res
 })

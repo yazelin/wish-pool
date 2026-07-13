@@ -932,9 +932,9 @@ async function loadCredits() {
       return s
     }, d.anonymous_wishes > 0 ? `以及 ${d.anonymous_wishes} 則匿名願望` : '')
     const hasI = fill('#credits-implementers', d.implementers, (p) => {
-      const a = el('a', 'badge', (p.adopted > 0 ? '★ ' : '') + '@' + p.handle)
-      a.href = 'https://github.com/' + encodeURIComponent(p.handle)
-      a.target = '_blank'; a.rel = 'noopener nofollow'
+      const a = ghLink(p.handle)   // 既有 helper:handle 格式驗證+noopener nofollow,壞格式退純文字
+      a.classList.add('badge')
+      if (p.adopted > 0) a.textContent = '★ ' + a.textContent
       a.title = `交出 ${p.answers} 份實作` + (p.adopted > 0 ? `,${p.adopted} 份被採用` : '')
       return a
     }, d.unsigned_answers > 0 ? `以及 ${d.unsigned_answers} 份未署名實作` : '')

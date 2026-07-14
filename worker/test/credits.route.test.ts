@@ -34,6 +34,7 @@ describe('GET /api/credits', () => {
     await seedWish('published', null, 40)
     await seedWish('pending', '不該出現', 50)
     const hid = await seedWish('hidden', '影子', 60)
+    await seedWish('published', '站方示範', 70)   // 站方 bootstrap 署名:公開但不進感謝名單
     // 實作側:bob 1 份被採用;Alice/alice 2 份合併(顯示先出現的 Alice);未署名 1 份;
     // hidden 願望上的 answer 與 hidden answer 都不算
     const aB = await seedAnswer(w2, 'bob', 100)

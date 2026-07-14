@@ -7,7 +7,7 @@ import { creditsRows } from '../lib/d1'
 // edge cache 走 caches.default(og.ts 同款)—— Worker 回應光設 header 不會進 Cloudflare cache。
 export const credits = new Hono<{ Bindings: Env }>()
 
-const CACHE_KEY = 'https://credits-cache.wish-pool.local/v1'
+const CACHE_KEY = 'https://credits-cache.wish-pool.local/v2'
 
 credits.get('/api/credits', async (c) => {
   const cache = caches.default
@@ -21,6 +21,7 @@ credits.get('/api/credits', async (c) => {
   for (const r of wishRows) {
     const nick = (r.nickname ?? '').trim()
     if (!nick) { anonymousWishes++; continue }
+    if (nick === '站方示範') continue   // 站方 bootstrap 署名不進感謝名單(owner 拍板)
     const cur = wishers.get(nick)
     if (cur) cur.wishes++
     else wishers.set(nick, { nickname: nick, wishes: 1 })

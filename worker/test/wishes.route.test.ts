@@ -58,6 +58,25 @@ describe('POST /api/wishes', () => {
     expect(j.status).toBe('published')
   })
 
+  it('回應帶 similar:池裡已有相似公開願望就推薦「可能有人做過」,無關的不推薦(issue #4)', async () => {
+    mockTurnstileOk()
+    const { createWish } = await import('../src/lib/d1')
+    const done = await createWish(env.DB, { title: '自動報價工具', problem: '手工查舊檔', status: 'done', open_questions: [] }, 1)
+    await createWish(env.DB, { title: '貓咪照片牆', problem: '想收集貓照', status: 'published', open_questions: [] }, 2)
+    const { signWish } = await import('../src/lib/sign')
+    const wish = { title: '自動報價系統', problem: '手工報價太慢', current: '', desired: '', who: '' }
+    const sig = await signWish('test-sign-secret', wish, 'ok', Math.floor(Date.now() / 1000) + 3600)
+    const res = await SELF.fetch(`${O}/api/wishes`, {
+      method: 'POST', headers: H,
+      body: JSON.stringify({ turnstileToken: 't', verdict: 'ok', sig, wish }),
+    })
+    expect(res.status).toBe(200)
+    const j = await res.json<{ status: string; similar: { id: number; title: string; status: string }[] }>()
+    expect(j.status).toBe('published')
+    expect(j.similar.map((s) => s.id)).toEqual([done])
+    expect(j.similar[0].status).toBe('done')
+  })
+
   it('verdict ok but NO signature (forged) -> 女神重審,判 review -> pending 且帶原因', async () => {
     mockTurnstileOk()
     mockGroqReview('{"verdict":"review","reason":"與想要一個作品無關"}')

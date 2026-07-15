@@ -10,6 +10,7 @@ import { agents } from './routes/agents'
 import { spec } from './routes/spec'
 import { refinement } from './routes/refinement'
 import { credits } from './routes/credits'
+import { share } from './routes/share'
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -35,5 +36,6 @@ app.route('/', agents)
 app.route('/', spec)
 app.route('/', refinement)
 app.route('/', credits)
+app.route('/', share)
 
 export default app

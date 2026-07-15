@@ -201,6 +201,8 @@ label.muted { display: block; font-size: .82rem; margin-bottom: 5px; }
 @keyframes sheetUp { from { transform: translateY(48px); opacity: .4; } to { transform: none; opacity: 1; } }
 .sheet-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 .sheet-close { min-height: 38px; padding: 7px 14px; font-size: .85rem; }
+.sheet-share { min-height: 38px; padding: 7px 14px; font-size: .85rem; margin-left: auto; margin-right: 8px;
+  color: var(--amber-soft); border-color: var(--amber-soft); }
 .sheet-title { font-family: var(--serif); font-weight: 700; font-size: 1.5rem; line-height: 1.35; margin: 2px 0 4px; color: #f8f0dd; }
 .sheet-label { font-family: var(--serif); font-weight: 700; color: var(--amber-soft); font-size: .95rem; margin: 18px 0 7px;
   display: flex; align-items: center; gap: 8px; }

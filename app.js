@@ -525,6 +525,19 @@ async function openSheet(id) {
   const head = el('div', 'sheet-head')
   head.appendChild(el('span', 'phrase ' + w.status, PHRASE[w.status] || ''))
   if (w.difficulty) head.appendChild(el('span', 'phrase', `規模:${w.difficulty}`))
+  // 分享集氣:連結走 worker 的 /s/:id,爬蟲才讀得到這個願望自己的 OG 卡(hash 爬蟲不看)
+  const shareBtn = el('button', 'sheet-share', '分享集氣')
+  shareBtn.onclick = async () => {
+    const url = `${API}/s/${w.id}`
+    if (navigator.share) {
+      try { await navigator.share({ title: w.title, text: `幫這個願望集氣:${w.title}`, url }) } catch { /* 使用者取消 */ }
+      return
+    }
+    try { await navigator.clipboard.writeText(url) } catch { window.prompt('複製這個連結分享:', url); return }
+    shareBtn.textContent = '連結已複製'
+    setTimeout(() => { shareBtn.textContent = '分享集氣' }, 2000)
+  }
+  head.appendChild(shareBtn)
   const x = el('button', 'sheet-close', '關')
   x.setAttribute('aria-label', '關閉')
   x.onclick = closeSheet

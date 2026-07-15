@@ -13,6 +13,7 @@ import { createWishDiscussion } from '../lib/github'
 import { setDiscussionUrl, autoAdoptIfHot } from '../lib/d1'
 import { notifyDiscussion } from '../lib/github'
 import { checkAgentBearer } from '../lib/agent-auth'
+import { findSimilarWishes, type SimilarWish } from '../lib/similar'
 
 const DAY = 86400
 
@@ -104,6 +105,14 @@ wishes.post('/api/wishes', async (c) => {
       reason = '女神一時忙不過來'
     }
   }
+  // 自動媒合「這個願望可能有人做過」(issue #4):在寫入前對站內既有公開願望比對,
+  // 只做推薦、不擋送出;比對出錯絕不影響許願(空陣列照常回)。
+  let similar: SimilarWish[] = []
+  try {
+    similar = await findSimilarWishes(c.env.DB, { title, problem: w.problem, desired: w.desired })
+  } catch (e) {
+    console.error('similar match error:', String(e))
+  }
   const id = await createWish(c.env.DB, {
     title,
     problem: w.problem, current: w.current, desired: w.desired, who: w.who, nickname: w.nickname,
@@ -126,8 +135,9 @@ wishes.post('/api/wishes', async (c) => {
         .catch((e) => console.error('discussion create failed:', String(e))),
     )
   }
-  // pending 時附上原因(重審不過的一句話 / LLM 忙不過來),讓前端顯示對的訊息
-  return c.json(reason ? { id, status, reason } : { id, status })
+  // pending 時附上原因(重審不過的一句話 / LLM 忙不過來),讓前端顯示對的訊息;
+  // similar = 站內相似的既有願望(可能有人做過),永遠帶(沒有就空陣列),向後相容純新增欄位
+  return c.json(reason ? { id, status, reason, similar } : { id, status, similar })
 })
 
 wishes.post('/api/wishes/:id/vote', async (c) => {

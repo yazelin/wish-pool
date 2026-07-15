@@ -1092,15 +1092,23 @@ async function submitWish(form, r, submit) {
     closeModal()
     // 許願即記關注(含 pending:之後上牆=狀態變化,回站會亮「有新進展」);at:0 = 之後的每筆動靜都算新
     watchWish(res.id, { t: 0, s: res.status, at: 0 })
+    // 自動媒合(issue #4):池裡已有相似願望就順帶提一句「可能有人做過」;只推薦不擋送出。
+    // alert 是純文字,標題直接插值不會有 XSS。
+    const similar = Array.isArray(res.similar) ? res.similar : []
+    const similarNote = similar.length
+      ? '\n\n順帶一提,池裡已有相似的願望,這個願望可能有人做過:\n' + similar.map((s) =>
+          `・#${s.id} ${s.title}${s.answers_count ? `(已有 ${s.answers_count} 個實作)` : ''}`).join('\n') +
+        '\n可以去投幣共鳴、或直接看它的實作。'
+      : ''
     if (res.status === 'published') {
       pond.coin(innerWidth / 2, innerHeight * .45, () => {})
-      alert('女神看過你的版本,直接上牆了。等等會幫你打開它 —— 之後回到這裡,有新實作或進度時你的願望會亮「有新進展」;想收 email 通知,可到它的討論串按 Subscribe(需 GitHub 帳號)')
+      alert('女神看過你的版本,直接上牆了。等等會幫你打開它 —— 之後回到這裡,有新實作或進度時你的願望會亮「有新進展」;想收 email 通知,可到它的討論串按 Subscribe(需 GitHub 帳號)' + similarNote)
       await loadPond()
       setTimeout(() => openSheet(res.id), 1800)   // 等自動開串一拍,打開時討論區就在
     } else {
       // pending:後端會附一句原因(重審不過的守則 / 女神一時忙不過來)
       const why = res.reason ? '(' + res.reason + ')' : ''
-      alert(`已收下,女神想請站主再看一眼${why}。站主確認後就會出現在池面上 —— 之後回到這裡,它上牆或有動靜時會亮「有新進展」`)
+      alert(`已收下,女神想請站主再看一眼${why}。站主確認後就會出現在池面上 —— 之後回到這裡,它上牆或有動靜時會亮「有新進展」` + similarNote)
     }
   } catch (e) {
     if (submit) submit.disabled = false

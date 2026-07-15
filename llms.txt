@@ -93,10 +93,10 @@ POST round body v1:
 - idempotency_key 最長 128 字元,只允許英數與 `._:-`;同 request 重試沿用同一 key。answer body 最長 2000、followup 500、assessment summary 1000 字;source 最多 5 個,每個 URL 最長 2048。
 - answers/followups 各 0..3。answer state=`answered|resolved|assumed`,basis=`requester|source|decision`,confidence=`high|medium|low`。
 - basis=requester 必須帶 `response_id`,指向同願望、同 need 下由非 agent refinement 寫入的既有回答;Worker 會把它存成 basis_response_id。這仍是社群回答,在尚無 owner identity 前不得宣稱 owner-confirmed。
-- source basis 一律需要至少一個 HTTP(S) source;若要標成 resolved 還必須是 high confidence。`assumed` 需要 decision basis,不得用於猜 requester 偏好。
+- source basis 一律需要至少一個 HTTP(S) source;若要標成 resolved 還必須是 high confidence。resolved 只接受 source/requester basis:decision basis 標 resolved 會 400 `resolution_requires_evidence`(改標 answered 或補 source)。`assumed` 需要 decision basis,不得用於猜 requester 偏好。
 - followup type=`info|skill|resource`,asked_of=`requester|agent|builder`,priority=`blocking|important|optional`;parent_need_id 選填。
 - assessment decision=`continue|needs_human|agent_ready`;checklist 固定含 goal/users/mvp_scope/primary_flow/acceptance/constraints/safety 七個 boolean,供 agent 表明自評,但伺服器會從合併後的 structured spec 重新計算,不直接相信布林值。
-- assessment.spec 是套用到上一版 structured spec 的 JSON merge patch(object 遞迴合併、陣列/純值取代、null 刪欄位);合併後快照最多 20KB。`agent_ready` 時合併後必須符合下方固定形狀,否則 409 `agent_ready_incomplete`:
+- assessment.spec 是套用到上一版 structured spec 的 JSON merge patch(object 遞迴合併、陣列/純值取代、null 刪欄位);合併後快照最多 20KB。`agent_ready` 那一輪必須自帶 assessment.spec,即使前一輪已存過(缺了 400 `agent_ready_requires_spec`;可把 GET refinement 的 `structured_spec` 原樣附上),且合併後必須符合下方固定形狀,否則 409 `agent_ready_incomplete`:
   `{"goal":"...","users":["..."],"mvp":{"in_scope":["..."],"out_of_scope":[]},"primary_flow":["..."],"requirements":[{"id":"R1","description":"...","acceptance":["..."]}],"constraints":[],"safety":[],"assumptions":[{"need_id":12,"statement":"..."}]}`
 - `assumed` 只允許 info need,而且 spec.assumptions 必須以 `{need_id,statement}` 逐條涵蓋所有 assumed need。伺服器驗證後才回 `spec_state=ready|ready_with_assumptions`;skill/resource 未解時規格可以 ready,但 implementation_ready 仍為 false。
 - POST 成功回 `{round_id,replayed,version,answer_ids,followup_ids,spec_state,spec_ready,implementation_ready,counts,next_action}`。

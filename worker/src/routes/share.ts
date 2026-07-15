@@ -4,6 +4,8 @@ import type { Env } from '../env'
 // 願望分享頁(集氣用):FB/LINE 爬蟲不讀 SPA 的 #wish-N hash,分享 #wish-N 出去
 // 永遠只有通用站卡。這裡回一頁帶「該願望專屬 OG」的 HTML 給爬蟲讀,真人則立刻
 // 跳轉回池子的該願望。只露 title/problem(本來就是公開牆面內容),非可見狀態 404。
+// 跳轉只能用 JS,不能用 meta refresh:FB 爬蟲會跟 meta refresh 跳到目的地,
+// 改用目的地的通用 OG(2026-07-15 FB debugger 實測);爬蟲不執行 JS 所以會留在本頁。
 export const share = new Hono<{ Bindings: Env }>()
 
 const SITE = 'https://yazelin.github.io/wish-pool/'
@@ -37,7 +39,6 @@ share.get('/s/:id', async (c) => {
 <meta name="twitter:title" content="${title}">
 <meta name="twitter:description" content="${desc}">
 <meta name="twitter:image" content="${SITE}og.png">
-<meta http-equiv="refresh" content="0;url=${esc(target)}">
 </head>
 <body>
 <p>正在前往願望頁…<a href="${esc(target)}">點這裡直接過去</a></p>

@@ -16,7 +16,8 @@
 - **AI agent 通道**:公開 API + `wish.mjs` CLI + Claude Code/Codex skill;agent 可依 `next_action` 逐輪補齊規格,可信 agent 以 `AGENT_TOKEN` 免 Turnstile 寫入。
 - **通知與追蹤**:每則願望一條專屬 GitHub Discussion(上牆自動開串、giscus 內嵌願望頁);交實作/認領/進度/狀態變更自動公告進串 —— 訂閱(Subscribe)該串即收 GitHub 原生通知(email 由 GitHub 代送,站方不經手任何 email)。站內通知:localStorage 記你參與過的願望(不註冊、不收 PII),回站一次清單比對「活動變多或狀態變了」,燈與星亮「有新進展」,打開願望時上次沒看過的實作/進度/留言標「新」。
 - **自動媒合「可能有人做過」**:送出願望時,伺服器對站內既有公開願望(含已完成/已有實作者)做純字面相似度比對(CJK 雙字 bigram + 英數詞的 Dice 係數,零 AI API),回應附 `similar[]`,前端順帶提示相似願望與其實作 —— 只推薦、不擋送出。
-- **防濫用**:Cloudflare Turnstile(Invisible)+ 每 IP 限流 + 投票軟去重。不用註冊。
+- **協力者 GitHub 登入(選配)**:許願者維持零登入的不對稱設計不變 —— 只有協力者需要時才登入,換到的是「投幣一人一票」(去重指紋改用 GitHub 帳號,換裝置換 IP 都只算一票)與「已驗證署名」(交實作/認領的 handle 由伺服器掛上登入帳號,前端顯示已驗證徽章)。OAuth scope 留空(只取用公開帳號名稱與頭像,不要任何 repo 權限);access token 用完即丟不入庫,登入憑證是 HMAC 簽章字串(無 session 表)。Worker 沒設 OAuth secrets 時整條登入路自動關閉,站台其餘功能不受影響。
+- **防濫用**:Cloudflare Turnstile(Invisible)+ 每 IP 限流 + 投票軟去重(登入者改走帳號去重)。不用註冊。
 
 ## 目錄
 
@@ -45,14 +46,28 @@ npx wrangler secret put IP_SALT            # 隨機字串(投票/限流雜湊用
 npx wrangler secret put WISH_SIGN_SECRET   # 隨機字串(AI verdict 簽章用,防繞過自動上牆)
 npx wrangler secret put AGENT_TOKEN        # 隨機字串(可信 AI agent 免 Turnstile 寫入用)
 npx wrangler secret put GH_PAT             # 選用:fine-grained PAT(只給本 repo Discussions RW),自動開串/公告用
+npx wrangler secret put GITHUB_CLIENT_ID     # 選用:協力者 GitHub 登入(OAuth App 的 Client ID)
+npx wrangler secret put GITHUB_CLIENT_SECRET # 選用:同上的 Client Secret;兩把都沒設 = 登入功能關閉
+npx wrangler secret put SESSION_SECRET       # 選用:登入憑證簽章用;不設則沿用 WISH_SIGN_SECRET
 npm run deploy                             # 得到 https://wish-pool.<you>.workers.dev
 ```
+
+#### 協力者 GitHub 登入(選配,不設就是關閉)
+
+1. GitHub → Settings → Developer settings → **OAuth Apps** → New OAuth App。
+   - Homepage URL:你的 Pages 網址(例:`https://yazelin.github.io/wish-pool/`)
+   - **Authorization callback URL**:同一個網址,要與 Worker 的 `OAUTH_REDIRECT_URI` 逐字一致
+2. 把 Client ID / Client Secret 用上面的 `wrangler secret put` 設進 Worker(不要進 repo)。
+3. `worker/wrangler.toml` 的 `[vars] OAUTH_REDIRECT_URI` 設成同一個 callback 網址(沒設則退回 `ALLOWED_ORIGIN`)。
+4. `config.js` 的 `GITHUB_LOGIN` 改成 `true`,池面才會出現「以 GitHub 登入」按鈕。
+
+登入只影響協力者:投幣去重指紋改用 GitHub 帳號、交實作/認領的署名由伺服器掛上登入帳號並標記已驗證。許願永遠不需要登入。
 
 編輯 `worker/wrangler.toml` 的 `[vars] ALLOWED_ORIGIN` 為你的 GitHub Pages 網址,重新 `npm run deploy`。
 
 ### 2. 前端(GitHub Pages)
 
-編輯 `config.js`:`WORKER_BASE` 填 Worker 網址、`TURNSTILE_SITE_KEY` 填 Turnstile site key。
+編輯 `config.js`:`WORKER_BASE` 填 Worker 網址、`TURNSTILE_SITE_KEY` 填 Turnstile site key、`GITHUB_LOGIN` 決定要不要亮登入按鈕。
 push 上 GitHub → Settings → Pages → Source 選 **GitHub Actions**(repo 內建 `.github/workflows/pages.yml`;legacy branch 部署曾因卡死的 deployment 連環失敗,workflow 模式穩定且看得到 log)。repo 根保留 `.nojekyll`。
 
 ### Turnstile 三個坑(都踩過,別再踩)
@@ -79,15 +94,22 @@ python3 -m http.server 8788   # repo 根起前端;把 config.js WORKER_BASE 暫�
 - `GET /api/wishes/:id/refinement` → **agent 規格完善狀態 JSON**:`version`、`spec_state`、`spec_ready`、`implementation_ready`、`checklist`、`structured_spec`、`counts`、`blockers`、`needs`、`next_action`、`limits`
 - `GET /api/wishes/:id` → 單一願望(只回公開狀態;pending/hidden 一律 404,與清單同口徑),含 `notes`(女神的整理筆記:五欄裝不下的使用情境/偏好/取捨,給實作者)與:
   - `needs[]`:`{ id, type, body, resolved, state, asked_of, priority, parent_need_id, source_response_id, created_at, updated_at }` —— **還缺哪些資訊/技能/資源才可能完成**;新 client 以 `state=open|answered|resolved|assumed|superseded` 為準,`resolved` 僅供舊版相容
-  - `updates[]`:`{ kind: claim|progress|blocked, body, github_handle, created_at }` —— 認領與進度(半成品可續)
-  - `answers[]`:`{ repo_url, note, github_handle, votes }` —— 已有的實作版本;`accepted_answer_id` = 被採用的版本
+  - `updates[]`:`{ kind: claim|progress|blocked, body, github_handle, handle_verified, created_at }` —— 認領與進度(半成品可續)
+  - `answers[]`:`{ repo_url, note, github_handle, handle_verified, votes }` —— 已有的實作版本;`accepted_answer_id` = 被採用的版本
+  - `handle_verified`:`1` = 這個署名是本人 GitHub 登入後由伺服器寫上的;`0` = 選填未驗證的 handle(既有資料與未登入投稿都是 0)
 - `POST /api/wishes` —— 許願;回應 `{ id, status, reason?, similar }`,`similar[]` = 站內相似的既有願望 `{ id, title, status, answers_count, score }`(自動媒合「可能有人做過」;只推薦不擋送出,沒有就空陣列)
 - `POST /api/wishes/:id/answers` `{ turnstileToken, repo_url, note?, github_handle? }` —— 交出你的 repo 實作
 - `POST /api/answers/:id/vote` `{ turnstileToken }` —— 為某實作版本投幣
 - `POST /api/wishes/:id/updates` `{ turnstileToken, kind, body, github_handle? }` —— 認領 / 回報進度 / 標卡關
 - `POST /api/wishes/:id/needs` `{ turnstileToken, type, body }` —— 補一個「還缺什麼」
 - `POST /api/wishes/:id/refinement/rounds` —— Bearer token 專用;以一個 JSON body 原子提交一輪回答、追問與規格決策,必含 `idempotency_key`、`base_version`;另可帶最多各 3 筆 `answers`/`followups` 與 `assessment`
-- `GET /api/credits` → 主頁感謝名單聚合:`wishers[]{nickname,wishes}`(公開願望的許願人)與 `implementers[]{handle,answers,adopted}`(visible answers 的實作者,被採用數優先排序),另附 `anonymous_wishes`/`unsigned_answers` 彙總;edge cache 10 分鐘
+- `GET /api/credits` → 主頁感謝名單聚合:`wishers[]{nickname,wishes}`(公開願望的許願人)與 `implementers[]{handle,answers,adopted,verified}`(visible answers 的實作者,被採用數優先排序),另附 `anonymous_wishes`/`unsigned_answers` 彙總;edge cache 10 分鐘
+
+- `GET /api/auth/github/start` → `{ authorize_url, state, expires_in }`(未設 OAuth secrets 時 503);state 由伺服器 HMAC 簽章,前端存 localStorage
+- `POST /api/auth/github/callback` `{ code, state }` → `{ token, user, expires_at }`;state 驗不過(偽造/竄改/過期)一律 400 且不打 GitHub
+- `GET /api/auth/me`(帶 `X-Wish-Session`)→ `{ user }` 或 401
+
+登入後的寫入請求帶 header `X-Wish-Session: <token>`:免 Turnstile(改以帳號節流)、投票以 GitHub 帳號去重、署名由伺服器掛上登入帳號。
 
 寫入端需 Turnstile token(前端隱形取得);**headless AI agent 改帶 `Authorization: Bearer <token>` 即免 Turnstile** —— token 在[協作指南](https://yazelin.github.io/wish-pool/collab.html)頁自助領取(真人過一次 Turnstile 即發,每枚每日 200 次、可撤銷)。平台只把 `repo_url` 當連結,**絕不抓取、執行或嵌入** repo 內容;GitHub repo 的成果預覽圖自動取自其社群預覽卡(要放實品截圖 → repo Settings → Social preview)。
 

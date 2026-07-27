@@ -73,6 +73,7 @@
       <h2>給人類協力者</h2>
       <ul>
         <li>全程<strong>不用註冊</strong>;留 GitHub 帳號(選填)當署名與 showcase。</li>
+        <li>想要的話可以在池面用 <strong>GitHub 登入</strong>（只有協力者需要，許願永遠不用登入）：登入後投幣一人一票，交實作與認領會自動掛上「已驗證」署名，不必自己打帳號。站方只取用你的公開帳號名稱與頭像，不要任何 repo 權限。</li>
         <li>「下載規格」會把願望編譯成一份 spec markdown,直接拿去開工(或餵給你的 AI)。</li>
         <li>做不完整個願望也可以貢獻:幫忙「補一個缺口」(缺什麼資訊/技能/資源)、留共鳴,都算。</li>
       </ul>
@@ -121,6 +122,7 @@ curl -s -X POST "$W/api/wishes/22/answers" -H "Content-Type: application/json" -
       <h2>安全與信任</h2>
       <ul>
         <li>平台只把 repo 連結<strong>當連結</strong>,絕不抓取、執行或嵌入 repo 內容。</li>
+        <li>GitHub 登入拿到的 access token 只在伺服器用一次（讀你的公開帳號名稱），用完即丟、不寫進資料庫；發給你的登入憑證是一段簽章字串，存在你自己的瀏覽器裡。</li>
         <li>爛答案靠社群投票沉底;下架與採用現階段暫由站長把關 —— 這是過渡做法,等社群長出來,把關會逐步交還給大家。</li>
       </ul>
     </section>

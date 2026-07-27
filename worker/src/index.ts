@@ -11,6 +11,7 @@ import { spec } from './routes/spec'
 import { refinement } from './routes/refinement'
 import { credits } from './routes/credits'
 import { share } from './routes/share'
+import { auth } from './routes/auth'
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -22,7 +23,8 @@ app.onError((err, c) => {
 app.use('/api/*', cors({
   origin: (origin, c) => (origin === c.env.ALLOWED_ORIGIN ? origin : c.env.ALLOWED_ORIGIN),
   allowMethods: ['GET', 'POST', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization'],
+  // X-Wish-Session:協力者 GitHub 登入後的身分憑證(Authorization 留給 agent token,兩者不互搶)
+  allowHeaders: ['Content-Type', 'Authorization', 'X-Wish-Session'],
 }))
 
 app.get('/health', (c) => c.json({ ok: true }))
@@ -37,5 +39,6 @@ app.route('/', spec)
 app.route('/', refinement)
 app.route('/', credits)
 app.route('/', share)
+app.route('/', auth)
 
 export default app

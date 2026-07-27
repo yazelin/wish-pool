@@ -54,8 +54,8 @@ describe('GET /api/credits', () => {
     ])
     expect(d.anonymous_wishes).toBe(1)
     expect(d.implementers).toEqual([
-      { handle: 'bob', answers: 1, adopted: 1 },
-      { handle: 'Alice', answers: 2, adopted: 0 },
+      { handle: 'bob', answers: 1, adopted: 1, verified: false },
+      { handle: 'Alice', answers: 2, adopted: 0, verified: false },
     ])
     expect(d.unsigned_answers).toBe(1)
   })

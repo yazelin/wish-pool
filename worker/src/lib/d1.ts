@@ -24,8 +24,9 @@ export type Need = {
   asked_of: string; priority: string; parent_need_id: number | null
   source_response_id: number | null; created_at: number; updated_at: number
 }
-export type Update = { id: number; kind: string; body: string; github_handle: string | null; created_at: number }
-export type Answer = { id: number; repo_url: string; note: string | null; github_handle: string | null; votes: number; status: string; created_at: number }
+// handle_verified:署名是否經 GitHub OAuth 驗證(issue #2);既有資料與未登入投稿都是 0
+export type Update = { id: number; kind: string; body: string; github_handle: string | null; handle_verified: number; created_at: number }
+export type Answer = { id: number; repo_url: string; note: string | null; github_handle: string | null; handle_verified: number; votes: number; status: string; created_at: number }
 export type ResponseRow = {
   id: number; question_id: number | null; parent_id: number | null; is_solution: number
   body: string; nickname: string | null; kind: string; created_at: number
@@ -100,8 +101,8 @@ export async function getWish(db: D1Database, id: number): Promise<Wish | null> 
             parent_need_id, source_response_id, created_at, updated_at
      FROM needs WHERE wish_id = ? ORDER BY id`,
   ).bind(id).all<Need>()
-  const u = await db.prepare('SELECT id, kind, body, github_handle, created_at FROM updates WHERE wish_id = ? ORDER BY id').bind(id).all<Update>()
-  const a = await db.prepare("SELECT id, repo_url, note, github_handle, votes, status, created_at FROM answers WHERE wish_id = ? AND status = 'visible' ORDER BY votes DESC, created_at DESC").bind(id).all<Answer>()
+  const u = await db.prepare('SELECT id, kind, body, github_handle, handle_verified, created_at FROM updates WHERE wish_id = ? ORDER BY id').bind(id).all<Update>()
+  const a = await db.prepare("SELECT id, repo_url, note, github_handle, handle_verified, votes, status, created_at FROM answers WHERE wish_id = ? AND status = 'visible' ORDER BY votes DESC, created_at DESC").bind(id).all<Answer>()
   const r = await db.prepare('SELECT id, question_id, parent_id, is_solution, body, nickname, kind, created_at FROM responses WHERE wish_id = ? ORDER BY id').bind(id).all<ResponseRow>()
   return { ...row, needs: q.results, updates: u.results, answers: a.results, responses: r.results }
 }
@@ -341,28 +342,28 @@ export async function resolveNeed(db: D1Database, id: number): Promise<void> {
 
 const UPDATE_KINDS = ['claim', 'progress', 'blocked']
 export async function addUpdate(
-  db: D1Database, wishId: number, u: { kind: string; body: string; github_handle?: string; agentTokenId?: number }, now: number,
+  db: D1Database, wishId: number, u: { kind: string; body: string; github_handle?: string; handleVerified?: boolean; agentTokenId?: number }, now: number,
 ): Promise<number> {
   const kind = UPDATE_KINDS.includes(u.kind) ? u.kind : 'progress'
-  const res = await db.prepare('INSERT INTO updates (wish_id, kind, body, github_handle, created_at, agent_token_id) VALUES (?, ?, ?, ?, ?, ?)')
-    .bind(wishId, kind, u.body, u.github_handle ?? null, now, u.agentTokenId ?? null).run()
+  const res = await db.prepare('INSERT INTO updates (wish_id, kind, body, github_handle, handle_verified, created_at, agent_token_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .bind(wishId, kind, u.body, u.github_handle ?? null, u.handleVerified ? 1 : 0, now, u.agentTokenId ?? null).run()
   return res.meta.last_row_id as number
 }
 export async function listUpdates(db: D1Database, wishId: number): Promise<Update[]> {
-  const { results } = await db.prepare('SELECT id, kind, body, github_handle, created_at FROM updates WHERE wish_id = ? ORDER BY id').bind(wishId).all<Update>()
+  const { results } = await db.prepare('SELECT id, kind, body, github_handle, handle_verified, created_at FROM updates WHERE wish_id = ? ORDER BY id').bind(wishId).all<Update>()
   return results
 }
 
 export async function createAnswer(
-  db: D1Database, wishId: number, a: { repo_url: string; note?: string; github_handle?: string; agentTokenId?: number }, now: number,
+  db: D1Database, wishId: number, a: { repo_url: string; note?: string; github_handle?: string; handleVerified?: boolean; agentTokenId?: number }, now: number,
 ): Promise<number> {
-  const res = await db.prepare('INSERT INTO answers (wish_id, repo_url, note, github_handle, votes, status, created_at, agent_token_id) VALUES (?, ?, ?, ?, 0, ?, ?, ?)')
-    .bind(wishId, a.repo_url, a.note ?? null, a.github_handle ?? null, 'visible', now, a.agentTokenId ?? null).run()
+  const res = await db.prepare('INSERT INTO answers (wish_id, repo_url, note, github_handle, handle_verified, votes, status, created_at, agent_token_id) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)')
+    .bind(wishId, a.repo_url, a.note ?? null, a.github_handle ?? null, a.handleVerified ? 1 : 0, 'visible', now, a.agentTokenId ?? null).run()
   return res.meta.last_row_id as number
 }
 export async function listAnswers(db: D1Database, wishId: number, opts: { includeHidden?: boolean } = {}): Promise<Answer[]> {
   const where = opts.includeHidden ? '' : "AND status = 'visible'"
-  const { results } = await db.prepare(`SELECT id, repo_url, note, github_handle, votes, status, created_at FROM answers WHERE wish_id = ? ${where} ORDER BY votes DESC, created_at DESC`).bind(wishId).all<Answer>()
+  const { results } = await db.prepare(`SELECT id, repo_url, note, github_handle, handle_verified, votes, status, created_at FROM answers WHERE wish_id = ? ${where} ORDER BY votes DESC, created_at DESC`).bind(wishId).all<Answer>()
   return results
 }
 export async function addAnswerVote(db: D1Database, answerId: number, fingerprint: string, now: number): Promise<{ ok: boolean; votes: number }> {
@@ -392,13 +393,13 @@ export async function acceptAnswer(db: D1Database, wishId: number, answerId: num
 // 與 listWishes/publicAnswerExists 同口徑;batch 一趟拿兩組;ORDER BY 帶 id 保完全決定性。
 export async function creditsRows(db: D1Database): Promise<{
   wishRows: { nickname: string | null }[]
-  answerRows: { handle: string | null; adopted: number | null }[]
+  answerRows: { handle: string | null; verified: number | null; adopted: number | null }[]
 }> {
   const marks = PUBLIC_STATUSES.map(() => '?').join(',')
   const [w, a] = await db.batch([
     db.prepare(`SELECT nickname FROM wishes WHERE status IN (${marks}) ORDER BY created_at, id`).bind(...PUBLIC_STATUSES),
     db.prepare(
-      `SELECT a.github_handle AS handle, (a.id = w.accepted_answer_id) AS adopted
+      `SELECT a.github_handle AS handle, a.handle_verified AS verified, (a.id = w.accepted_answer_id) AS adopted
          FROM answers a JOIN wishes w ON w.id = a.wish_id
         WHERE a.status = 'visible' AND w.status IN (${marks})
         ORDER BY a.created_at, a.id`,
@@ -406,7 +407,7 @@ export async function creditsRows(db: D1Database): Promise<{
   ])
   return {
     wishRows: (w.results ?? []) as { nickname: string | null }[],
-    answerRows: (a.results ?? []) as { handle: string | null; adopted: number | null }[],
+    answerRows: (a.results ?? []) as { handle: string | null; verified: number | null; adopted: number | null }[],
   }
 }
 // 硬刪除:連子表一起清(表名來自固定陣列,非 user input)。

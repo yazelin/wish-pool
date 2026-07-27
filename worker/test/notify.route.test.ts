@@ -87,8 +87,8 @@ describe('公開欄位契約(隱私欄位不外洩)', () => {
     await createNeed(env.DB, id, 'info', '缺什麼?')
     const w = await SELF.fetch(`${O}/api/wishes/${id}`).then((r) => r.json<any>())
     expect(Object.keys(w).sort()).toEqual([...WISH_KEYS, 'needs', 'updates', 'answers', 'responses'].sort())
-    expect(Object.keys(w.answers[0]).sort()).toEqual(['id', 'repo_url', 'note', 'github_handle', 'votes', 'status', 'created_at'].sort())
-    expect(Object.keys(w.updates[0]).sort()).toEqual(['id', 'kind', 'body', 'github_handle', 'created_at'].sort())
+    expect(Object.keys(w.answers[0]).sort()).toEqual(['id', 'repo_url', 'note', 'github_handle', 'handle_verified', 'votes', 'status', 'created_at'].sort())
+    expect(Object.keys(w.updates[0]).sort()).toEqual(['id', 'kind', 'body', 'github_handle', 'handle_verified', 'created_at'].sort())
     expect(Object.keys(w.responses[0]).sort()).toEqual(['id', 'question_id', 'parent_id', 'is_solution', 'body', 'nickname', 'kind', 'created_at'].sort())
     expect(Object.keys(w.needs[0]).sort()).toEqual([
       'id', 'type', 'body', 'resolved', 'state', 'asked_of', 'priority',

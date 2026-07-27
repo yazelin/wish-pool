@@ -14,4 +14,4 @@
 - 規格與計劃:`docs/superpowers/specs/`、`docs/superpowers/plans/`。
 - feature 級的待辦在 GitHub Issues,不在池子裡;池子只收作品級願望。
 - **開發流程**:功能/行為改變 → 先開 GitHub issue → 短命 branch → PR(CI 需綠:worker 測試+typecheck)→ merge;錯字/文案微調/緊急 hotfix 可直接 master。merge 後若動了 `worker/`,要手動 `npm run deploy`(只有 Pages 會自動部署)。
-- 部署:migrate:remote → deploy;secrets 一律 `wrangler secret put`(七把含選用 GH_PAT,見 README),不進 repo。
+- 部署:migrate:remote → deploy;secrets 一律 `wrangler secret put`(六把必要 + 選用 GH_PAT 與 GitHub OAuth 三把,見 README),不進 repo。

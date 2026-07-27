@@ -5,5 +5,5 @@
 window.WISHPOOL_CONFIG = {
   WORKER_BASE: 'https://wish-pool.yazelinj303.workers.dev',
   TURNSTILE_SITE_KEY: '0x4AAAAAADuSV2wW2GraJPZR',
-  GITHUB_LOGIN: false,
+  GITHUB_LOGIN: true,
 }

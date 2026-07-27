@@ -7,7 +7,8 @@ import { creditsRows } from '../lib/d1'
 // edge cache 走 caches.default(og.ts 同款)—— Worker 回應光設 header 不會進 Cloudflare cache。
 export const credits = new Hono<{ Bindings: Env }>()
 
-const CACHE_KEY = 'https://credits-cache.wish-pool.local/v2'
+// v3:回應多了 implementers[].verified(已驗證署名),換 key 讓新欄位立即生效,不等舊快取過期
+const CACHE_KEY = 'https://credits-cache.wish-pool.local/v3'
 
 credits.get('/api/credits', async (c) => {
   const cache = caches.default
@@ -27,15 +28,16 @@ credits.get('/api/credits', async (c) => {
     else wishers.set(nick, { nickname: nick, wishes: 1 })
   }
 
-  const implementers = new Map<string, { handle: string; answers: number; adopted: number }>()
+  // verified:這個 handle 至少有一筆實作是登入後(GitHub OAuth)署名的(issue #2)
+  const implementers = new Map<string, { handle: string; answers: number; adopted: number; verified: boolean }>()
   let unsignedAnswers = 0
   for (const r of answerRows) {
     const handle = (r.handle ?? '').trim()
     if (!handle) { unsignedAnswers++; continue }
     const key = handle.toLowerCase()
     const cur = implementers.get(key)
-    if (cur) { cur.answers++; cur.adopted += r.adopted ? 1 : 0 }
-    else implementers.set(key, { handle, answers: 1, adopted: r.adopted ? 1 : 0 })
+    if (cur) { cur.answers++; cur.adopted += r.adopted ? 1 : 0; cur.verified = cur.verified || !!r.verified }
+    else implementers.set(key, { handle, answers: 1, adopted: r.adopted ? 1 : 0, verified: !!r.verified })
   }
 
   c.header('Cache-Control', 'public, max-age=60, s-maxage=600')

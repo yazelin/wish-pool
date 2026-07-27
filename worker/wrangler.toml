@@ -13,6 +13,10 @@ database_id = "0e47a066-f0a8-4f3e-9bdb-5e1bcbf95d52"
 ALLOWED_ORIGIN = "https://yazelin.github.io"   # GitHub Pages 來源(CORS 比對)
 GROQ_BASE = "https://api.groq.com/openai/v1"
 GROQ_MODEL = "openai/gpt-oss-120b"
+# 協力者 GitHub 登入的 callback:要與 GitHub OAuth App 註冊的 Authorization callback URL 逐字一致
+OAUTH_REDIRECT_URI = "https://yazelin.github.io/wish-pool/"
 
 # Secrets(用 `wrangler secret put <NAME>`,不放這裡):
 #   GROQ_API_KEY   TURNSTILE_SECRET   ADMIN_TOKEN   IP_SALT   WISH_SIGN_SECRET   AGENT_TOKEN
+#   選用:GH_PAT(Discussions)、GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET(協力者登入,兩把都沒設 = 功能關閉)、
+#         SESSION_SECRET(登入憑證簽章;不設則沿用 WISH_SIGN_SECRET)

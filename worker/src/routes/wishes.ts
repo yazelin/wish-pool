@@ -14,6 +14,7 @@ import { setDiscussionUrl, autoAdoptIfHot } from '../lib/d1'
 import { notifyDiscussion } from '../lib/github'
 import { checkAgentBearer } from '../lib/agent-auth'
 import { findSimilarWishes, type SimilarWish } from '../lib/similar'
+import { currentUser, userFingerprint } from '../lib/oauth'
 
 const DAY = 86400
 
@@ -39,6 +40,13 @@ export const wishes = new Hono<{ Bindings: Env }>()
 function ip(c: any): string { return c.req.header('CF-Connecting-IP') || '0.0.0.0' }
 
 async function guard(c: any, token: string, action: string, limit: number): Promise<Response | null> {
+  // 已登入的協力者(GitHub OAuth):改以帳號身分節流,免 Turnstile(登入永遠是選配,不登入行為完全不變)
+  const user = await currentUser(c)
+  if (user) {
+    c.set('user', user)
+    if (!(await checkAndBump(c.env.DB, `u:${action}:${user.id}`, limit, DAY, Math.floor(Date.now() / 1000)))) return c.json({ error: 'rate_limited' }, 429)
+    return null
+  }
   const ok = await verifyTurnstile(token, ip(c), c.env.TURNSTILE_SECRET)
   if (!ok) return c.json({ error: 'turnstile_failed' }, 403)
   const fp = await hashIp(ip(c), c.env.IP_SALT)
@@ -143,15 +151,26 @@ wishes.post('/api/wishes', async (c) => {
 wishes.post('/api/wishes/:id/vote', async (c) => {
   const id = Number(c.req.param('id'))
   const b = await c.req.json().catch(() => ({}))
-  const agent = await checkAgentBearer(c, 'atokv', 50)
-  if (agent instanceof Response) return agent
-  if (!agent) {
+  // 登入者優先:一個 GitHub 帳號一票(換裝置、換 IP 都同一枚指紋);沒登入才走 agent / Turnstile 老路
+  const user = await currentUser(c)
+  let agent: { tokenId: number | null } | null = null
+  if (user) {
     const blocked = await guard(c, b.turnstileToken, 'vote', 100)
     if (blocked) return blocked
+  } else {
+    const a = await checkAgentBearer(c, 'atokv', 50)
+    if (a instanceof Response) return a
+    agent = a
+    if (!agent) {
+      const blocked = await guard(c, b.turnstileToken, 'vote', 100)
+      if (blocked) return blocked
+    }
   }
   if (!Number.isInteger(id) || !(await publicWishExists(c.env.DB, id))) return c.json({ error: 'not_found' }, 404)
-  // agent 投幣以 token 身分去重(一 token 一票);人類照舊 IP 指紋
-  const fp = agent ? 'tok:' + ((c as any).get('atokHash') || 'owner') : await hashIp(ip(c), c.env.IP_SALT)
+  // 登入者以 GitHub 帳號去重;agent 以 token 身分去重(一 token 一票);其餘照舊 IP 指紋
+  const fp = user ? userFingerprint(user)
+    : agent ? 'tok:' + ((c as any).get('atokHash') || 'owner')
+      : await hashIp(ip(c), c.env.IP_SALT)
   const r = await addVote(c.env.DB, id, fp, Math.floor(Date.now() / 1000))
   if (r.ok) {
     c.executionCtx.waitUntil((async () => {

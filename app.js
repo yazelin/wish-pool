@@ -39,7 +39,12 @@ function lastActivityAt(w) {
 function isFresh(seen, total, status) { return total > (seen.t || 0) || (seen.s != null && status !== seen.s) }
 
 async function api(path, opts) {
-  const res = await fetch(API + path, opts)
+  const o = opts || {}
+  // 寫入才帶登入憑證:GET 帶自訂 header 會讓每次讀取都多一趟 CORS preflight
+  const isWrite = !!o.method && o.method !== 'GET'
+  const res = await fetch(API + path, isWrite
+    ? { ...o, headers: { ...(o.headers || {}), ...(window.WishAuth ? WishAuth.headers() : {}) } }
+    : o)
   if (!res.ok) throw Object.assign(new Error('api'), { status: res.status, body: await res.text().catch(() => '') })
   return res.json()
 }
@@ -99,6 +104,12 @@ async function getTurnstileToken() {
   if (window.turnstile) fillTurnstile().catch(() => {})
   else setTimeout(warmTurnstile, 400)
 })()
+// 寫入動作要用的 token:已登入的協力者由伺服器認 GitHub 帳號,不需要 Turnstile,
+// 所以 widget 沒載到也不擋他的動作;沒登入照舊 —— 拿不到 token 就是失敗。
+async function writeToken() {
+  if (window.WishAuth && WishAuth.get()) return getTurnstileToken().catch(() => '')
+  return getTurnstileToken()
+}
 
 /* ============ 水面(canvas):微光粒 + 漣漪環 + 許願幣 ============ */
 const isDay = () => document.documentElement.classList.contains('theme-day')
@@ -198,13 +209,23 @@ function linkifyInto(parent, text) {
   if (last < text.length) parent.append(text.slice(last))
 }
 // @handle -> GitHub 個人頁連結(格式不合就退回純文字)
-function ghLink(handle) {
+// verified:這個署名是登入後由伺服器寫上的(issue #2),加一枚「已驗證」小徽章
+function ghLink(handle, verified) {
+  let node
   if (/^[A-Za-z0-9-]{1,39}$/.test(handle)) {
     const a = el('a', 'repo-link', '@' + handle)
     a.href = 'https://github.com/' + handle; a.target = '_blank'; a.rel = 'noopener nofollow'
-    return a
+    node = a
+  } else {
+    node = el('span', null, '@' + handle)
   }
-  return el('span', null, '@' + handle)
+  if (!verified) return node
+  const wrap = el('span', 'gh-signed')
+  wrap.appendChild(node)
+  const badge = el('span', 'verified-badge', '已驗證')
+  badge.title = '這個署名經 GitHub 登入驗證'
+  wrap.appendChild(badge)
+  return wrap
 }
 // 自製表單彈窗:原生 prompt() 在手機切走畫面會被瀏覽器自動取消(打一半全丟)。
 // 這個 DOM 彈窗切走再回來都在;點背景「不」取消(防誤觸),只有取消鈕會關。
@@ -217,6 +238,7 @@ function askForm(title, fields) {
     const inputs = {}
     fields.forEach((f) => {
       const wrap = el('div'); wrap.style.marginBottom = '8px'
+      if (f.type === 'note') { wrap.appendChild(el('p', 'muted', f.label)); box.appendChild(wrap); return }
       if (f.label) wrap.appendChild(el('label', 'muted', f.label))
       let inp
       if (f.type === 'textarea') inp = el('textarea')
@@ -235,6 +257,7 @@ function askForm(title, fields) {
     ok.onclick = () => {
       const vals = {}
       for (const f of fields) {
+        if (f.type === 'note') continue   // 純說明文字,沒有輸入格
         const v = inputs[f.name].value.trim()
         if (f.required && !v) { inputs[f.name].focus(); inputs[f.name].style.borderColor = 'var(--danger)'; return }
         if (f.check && v) { const err = f.check(v); if (err) { alert(err); inputs[f.name].focus(); return } }
@@ -559,7 +582,7 @@ async function openSheet(id) {
       link.href = acc.repo_url; link.textContent = acc.repo_url
       link.target = '_blank'; link.rel = 'noopener nofollow'
       cele.appendChild(link)
-      if (acc.github_handle) { const byp = el('p', 'wisher', '由 '); byp.appendChild(ghLink(acc.github_handle)); byp.append(' 實現'); cele.appendChild(byp) }
+      if (acc.github_handle) { const byp = el('p', 'wisher', '由 '); byp.appendChild(ghLink(acc.github_handle, acc.handle_verified)); byp.append(' 實現'); cele.appendChild(byp) }
     }
     sheet.appendChild(cele)
   }
@@ -704,7 +727,7 @@ async function openSheet(id) {
     const line = el('div', 'update')
     line.appendChild(el('span', 'update-kind ' + u.kind, kind))
     const ub = el('span'); ub.append(' '); linkifyInto(ub, u.body); line.appendChild(ub)
-    if (u.github_handle) { const uw = el('span', 'wisher', '  '); uw.appendChild(ghLink(u.github_handle)); line.appendChild(uw) }
+    if (u.github_handle) { const uw = el('span', 'wisher', '  '); uw.appendChild(ghLink(u.github_handle, u.handle_verified)); line.appendChild(uw) }
     tagNew(line, u.created_at)
     hv.appendChild(line)
   })
@@ -729,7 +752,7 @@ async function openSheet(id) {
     vb.append('投幣 ', el('span', null, String(a.votes)))
     vb.onclick = () => voteAnswer(a.id, vb)
     foot.appendChild(vb)
-    if (a.github_handle) { const fw = el('span', 'wisher'); fw.appendChild(ghLink(a.github_handle)); foot.appendChild(fw) }
+    if (a.github_handle) { const fw = el('span', 'wisher'); fw.appendChild(ghLink(a.github_handle, a.handle_verified)); foot.appendChild(fw) }
     ans.appendChild(foot)
     hv.appendChild(ans)
   })
@@ -770,7 +793,7 @@ async function tossCoinFor(id, btn) {
   const prev = Number(countEl.textContent)
   countEl.textContent = prev + 1   // 樂觀更新,伺服器回來校正
   try {
-    const token = await getTurnstileToken()
+    const token = await writeToken()
     const res = await api(`/api/wishes/${id}/vote`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ turnstileToken: token }),
@@ -789,7 +812,7 @@ async function answerNeed(wishId, needId) {
   ])
   if (!v) return
   try {
-    const token = await getTurnstileToken()
+    const token = await writeToken()
     await api(`/api/wishes/${wishId}/responses`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ turnstileToken: token, body: v.body, nickname: v.nickname, kind: 'answer', questionId: needId }),
@@ -806,7 +829,7 @@ async function sendEcho(wishId) {
   ])
   if (!v) return
   try {
-    const token = await getTurnstileToken()
+    const token = await writeToken()
     await api(`/api/wishes/${wishId}/responses`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ turnstileToken: token, body: v.body, nickname: v.nickname, kind: 'metoo' }),
@@ -823,7 +846,7 @@ async function replyTo(wishId, parentId) {
   ])
   if (!v) return
   try {
-    const token = await getTurnstileToken()
+    const token = await writeToken()
     await api(`/api/wishes/${wishId}/responses`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ turnstileToken: token, body: v.body, nickname: v.nickname, kind: 'answer', parentId }),
@@ -837,7 +860,7 @@ async function replyTo(wishId, parentId) {
 async function markSolved(responseId) {
   if (!confirm('把這則標記為「解決了我的問題」?')) return
   try {
-    const token = await getTurnstileToken()
+    const token = await writeToken()
     await api(`/api/responses/${responseId}/solve`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ turnstileToken: token }),
@@ -848,7 +871,7 @@ async function markSolved(responseId) {
 
 async function postWithTurnstile(path, payload, okMsg, watchId) {
   try {
-    const token = await getTurnstileToken()
+    const token = await writeToken()
     await api(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...payload, turnstileToken: token }) })
     if (watchId != null) watchWish(watchId)   // 成功才記關注,取消/失敗不留假「有新進展」
     alert(okMsg)
@@ -856,30 +879,37 @@ async function postWithTurnstile(path, payload, okMsg, watchId) {
   } catch (e) { alert(e.status === 429 ? '今天次數已達上限,明天再來' : '送出失敗,請稍後再試') }
 }
 async function submitAnswer(wishId) {
+  const me = window.WishAuth && WishAuth.get()
   const v = await askForm('交實作 / 指路現成專案', [
     { name: 'repo', label: 'repo 網址(自己做的,或幫忙指路的現成專案)', placeholder: 'https://github.com/...', required: true,
       check: (x) => (/^https?:\/\//.test(x) ? null : '請貼有效的 http(s) 網址') },
     { name: 'note', type: 'textarea', label: '一句話說明(指路請註明「已有現成」,可留空)' },
-    { name: 'handle', label: '你的 GitHub 帳號(選填,成真時掛名)' },
+    // 已登入就不用自己填 handle:署名由伺服器掛上登入的 GitHub 帳號,標記為已驗證
+    me ? { name: 'signed', type: 'note', label: `將以 @${me.user.login} 署名（已驗證）` }
+      : { name: 'handle', label: '你的 GitHub 帳號(選填,成真時掛名)' },
   ])
   if (!v) return
   await postWithTurnstile(`/api/wishes/${wishId}/answers`, { repo_url: v.repo, note: v.note, github_handle: v.handle }, '收到你的實作,謝謝你讓願望往前一步', wishId)
 }
 async function voteAnswer(answerId, btn) {
   try {
-    const token = await getTurnstileToken()
+    const token = await writeToken()
     const r = await api(`/api/answers/${answerId}/vote`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ turnstileToken: token }) })
     btn.querySelector('span').textContent = r.votes
     if (!r.ok) btn.disabled = true
   } catch (e) { alert('投幣沒成功,請稍後再試') }
 }
 async function submitUpdate(wishId, isClaim) {
+  const me = window.WishAuth && WishAuth.get()
+  const signField = me
+    ? { name: 'signed', type: 'note', label: `將以 @${me.user.login} 署名（已驗證）` }
+    : { name: 'handle', label: '你的 GitHub 帳號(選填)' }
   const fields = isClaim
     ? [{ name: 'body', type: 'textarea', label: '跟大家說一聲你要實現它。建議順手開一個 repo 把連結貼在這裡 —— 其他有興趣的朋友就能直接 fork / PR 一起做', required: true },
-       { name: 'handle', label: '你的 GitHub 帳號(選填)' }]
+       signField]
     : [{ name: 'kind', type: 'select', label: '這是進度還是卡關?', options: [['progress', '進度'], ['blocked', '卡關']] },
        { name: 'body', type: 'textarea', label: '說明(例:做到 X / 卡在 Y;有連結直接貼,會自動變可點)', required: true },
-       { name: 'handle', label: '你的 GitHub 帳號(選填)' }]
+       signField]
   const v = await askForm(isClaim ? '我來實現這個願望' : '回報進度 / 卡關', fields)
   if (!v) return
   const kind = isClaim ? 'claim' : (v.kind || 'progress')
@@ -920,10 +950,36 @@ themeBtn.onclick = () => {
 }
 syncThemeBtn()
 
-loadPond().then(() => {
-  const m = location.hash.match(/^#wish-(\d+)$/)
-  if (m) openSheet(Number(m[1]))
-})
+/* 協力者 GitHub 登入(issue #2):許願不需要登入,登入換到的是「投幣一人一票 + 已驗證署名」。
+   Worker 沒設好 OAuth secrets 前(config.js 的 GITHUB_LOGIN=false)按鈕不亮;已經登入過的人照樣看得到。 */
+const authBtn = $('#auth-btn')
+function syncAuthBtn() {
+  const s = window.WishAuth ? WishAuth.get() : null
+  authBtn.hidden = !(CFG.GITHUB_LOGIN || s)
+  authBtn.textContent = s ? '@' + s.user.login : '以 GitHub 登入'
+  authBtn.classList.toggle('active', !!s)
+  authBtn.title = s
+    ? '已登入：投幣一人一票，交實作與認領會自動掛上已驗證署名（點一下可以登出）'
+    : '協力者登入：投幣一人一票，交實作與認領會自動掛上已驗證署名。許願不需要登入'
+}
+authBtn.onclick = async () => {
+  const s = window.WishAuth ? WishAuth.get() : null
+  if (s) { if (confirm('登出 GitHub 帳號？')) { WishAuth.logout(); syncAuthBtn() } }
+  else await WishAuth.login()
+}
+if (window.WishAuth) WishAuth.onChange(syncAuthBtn)
+syncAuthBtn()
+
+;(window.WishAuth ? WishAuth.handleRedirect() : Promise.resolve(false))
+  .then((loggedIn) => {
+    syncAuthBtn()
+    if (loggedIn) alert('登入完成。之後你的投幣一人一票，交實作與認領會自動掛上已驗證署名。')
+    return loadPond()
+  })
+  .then(() => {
+    const m = location.hash.match(/^#wish-(\d+)$/)
+    if (m) openSheet(Number(m[1]))
+  })
 
 /* ============ 感謝名單(footer 上方;載不到或全空就保持隱藏) ============ */
 async function loadCredits() {
@@ -945,10 +1001,11 @@ async function loadCredits() {
       return s
     }, d.anonymous_wishes > 0 ? `以及 ${d.anonymous_wishes} 則匿名願望` : '')
     const hasI = fill('#credits-implementers', d.implementers, (p) => {
+      // 這裡刻意不帶 verified:下面會整個改寫 textContent,包一層徽章會把連結洗掉;已驗證改寫進 title
       const a = ghLink(p.handle)   // 既有 helper:handle 格式驗證+noopener nofollow,壞格式退純文字
       a.classList.add('badge')
       if (p.adopted > 0) a.textContent = '★ ' + a.textContent
-      a.title = `交出 ${p.answers} 份實作` + (p.adopted > 0 ? `,${p.adopted} 份被採用` : '')
+      a.title = `交出 ${p.answers} 份實作` + (p.adopted > 0 ? `,${p.adopted} 份被採用` : '') + (p.verified ? ';署名經 GitHub 驗證' : '')
       return a
     }, d.unsigned_answers > 0 ? `以及 ${d.unsigned_answers} 份未署名實作` : '')
     $('#credits').hidden = !(hasW || hasI)
@@ -1097,7 +1154,7 @@ async function submitWish(form, r, submit) {
     messages: chatMessages.length ? chatMessages : undefined,
   }
   try {
-    const token = await getTurnstileToken()
+    const token = await writeToken()
     payload.turnstileToken = token
     const res = await api('/api/wishes', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),

@@ -166,6 +166,15 @@ label.muted { display: block; font-size: .82rem; margin-bottom: 5px; }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @keyframes starPulse { 0%,100% { box-shadow: 0 0 8px 2px rgba(244,181,58,.45); } 50% { box-shadow: 0 0 14px 5px rgba(244,181,58,.75); } }
 
+/* 手機:星河改垂直清單,標題完整換行不被切 */
+#starband.starlist { display: flex; flex-direction: column; gap: 10px; }
+#starband.starlist .star { max-width: none; width: 100%; border-radius: var(--r-sm); align-items: flex-start; }
+#starband.starlist .star-title { white-space: normal; overflow: visible; text-overflow: clip; flex: 1; }
+#starband.starlist .star-dot { margin-top: 6px; }
+#starband.starlist .star-meta { align-self: center; }
+.star-more { width: 100%; background: transparent; border-color: var(--border-soft);
+  color: var(--muted); font-size: .85rem; min-height: 40px; }
+
 /* 願望燈 */
 #lanterns { display: flex; flex-direction: column; gap: 20px; padding-bottom: 8px; }
 .lantern { position: relative; cursor: pointer; border-radius: 18px; padding: 22px 22px 18px;
@@ -181,6 +190,10 @@ label.muted { display: block; font-size: .82rem; margin-bottom: 5px; }
   background: radial-gradient(50% 100% at 50% 0%, rgba(244,181,58,.16), transparent 75%); pointer-events: none; }
 @keyframes bob { 0%,100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-5px) rotate(.25deg); } }
 .lantern h3 { font-family: var(--serif); font-weight: 700; font-size: 1.28rem; line-height: 1.4; margin: 2px 0 10px; color: #f6edda; }
+.lantern-tags { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 4px; }
+.lantern-sum { margin: 0 0 12px; color: var(--muted); font-size: .93rem; line-height: 1.6;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.theme-day .lantern-sum { color: #5b6f68; }
 .lantern-foot { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
 .coins { color: var(--amber-soft); font-size: .88rem; font-variant-numeric: tabular-nums; }
 .wisher { color: var(--dim); font-size: .82rem; }
@@ -193,6 +206,9 @@ label.muted { display: block; font-size: .82rem; margin-bottom: 5px; }
 .phrase.adopted { color: var(--adopted); border-color: rgba(124,196,255,.35); background: rgba(124,196,255,.08); }
 .phrase.building { color: var(--building); border-color: rgba(247,168,27,.35); background: rgba(247,168,27,.08); }
 .phrase.done { color: var(--success); border-color: rgba(74,222,128,.35); background: rgba(74,222,128,.08); }
+.phrase.spec { color: var(--amber-soft); border-color: rgba(244,181,58,.32); background: rgba(244,181,58,.07); }
+.phrase.spec.ok { color: var(--success); border-color: rgba(74,222,128,.35); background: rgba(74,222,128,.08); }
+.phrase.impl { color: var(--cyan); border-color: rgba(34,211,238,.32); background: rgba(34,211,238,.07); }
 
 /* bottom-sheet:打開一盞燈 */
 .sheet-bg { position: fixed; inset: 0; z-index: 60; background: var(--overlay); backdrop-filter: blur(6px);

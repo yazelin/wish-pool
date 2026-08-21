@@ -294,15 +294,49 @@ function renderStar(w) {
   return s
 }
 
+// 「適合新手」的條件:規模小或中(或還沒標)、而且還沒有人交過實作。
+// 刻意不要求「規格已齊」:目前池子裡多數願望的缺口都還沒補,那樣篩會篩到空的。
+function isRookieFriendly(w) {
+  return (!w.difficulty || w.difficulty === '小' || w.difficulty === '中') && !w.answers_count
+}
+
+// 卡片上的一句摘要:優先用「遇到什麼問題」,沒有才退回「希望有什麼」。
+// 實測池子裡的資料:problem 幾乎都是完整句子,desired 多半是分號串起來的功能清單,
+// 當一行摘要會變成規格傾倒,讀的人抓不到重點。只截字不解析,一律走 textContent(XSS 紀律)。
+function wishSummary(w) {
+  const t = String(w.problem || w.desired || '').replace(/\s+/g, ' ').trim()
+  return t.length > 76 ? t.slice(0, 75) + '…' : t
+}
+
+// 接單者真正要看的兩個訊號:規格還缺幾項、已經有幾份實作。
+// 兩者都用邀請的口氣寫,因為「還缺」與「還沒人做」都是可以參與的地方,不是缺點。
+function renderSignals(card, w) {
+  if (w.needs_total > 0) {
+    const done = w.needs_open === 0
+    card.appendChild(el('span', 'phrase spec' + (done ? ' ok' : ''),
+      done ? '規格已齊' : `還缺 ${w.needs_open} 項規格`))
+  }
+  if (w.answers_count > 0) {
+    card.appendChild(el('span', 'phrase impl', `${w.answers_count} 份實作`))
+  } else if (w.status === 'published' || w.status === 'adopted') {
+    card.appendChild(el('span', 'phrase', '還沒有人做'))
+  }
+}
+
 function renderLantern(w) {
   const card = el('article', 'lantern')
   card.id = 'wish-' + w.id
   card.tabIndex = 0
   card.setAttribute('role', 'button')
   card.setAttribute('aria-label', `打開願望:${w.title}`)
-  if (w.status !== 'published') card.appendChild(el('span', 'phrase ' + w.status, PHRASE[w.status] || ''))
-  if (w.difficulty) card.appendChild(el('span', 'phrase', `規模:${w.difficulty}`))
+  const tags = el('div', 'lantern-tags')
+  if (w.status !== 'published') tags.appendChild(el('span', 'phrase ' + w.status, PHRASE[w.status] || ''))
+  if (w.difficulty) tags.appendChild(el('span', 'phrase', `規模:${w.difficulty}`))
+  renderSignals(tags, w)
+  card.appendChild(tags)
   card.appendChild(el('h3', null, w.title))
+  const sum = wishSummary(w)
+  if (sum) card.appendChild(el('p', 'lantern-sum', sum))
   const foot = el('div', 'lantern-foot')
   foot.appendChild(el('span', 'coins', `已有 ${w.votes} 枚許願幣`))
   if (w.echoes) foot.appendChild(el('span', 'coins', `${w.echoes} 人共鳴`))
@@ -318,16 +352,20 @@ async function loadPond() {
   const lan = $('#lanterns'), band = $('#starband'), note = $('#empty')
   try {
     const showDone = currentSort === 'done'   // 「已實現」頁籤:成真願望用清單好好看(比在河道上追方便)
-    const { wishes } = await api(`/api/wishes?sort=${showDone ? 'new' : currentSort}&limit=100`)
+    const rookie = currentSort === 'rookie'   // 「適合新手」:規模小中、還沒人做的,給想累積作品集的人
+    const q = showDone || rookie ? (rookie ? 'hot' : 'new') : currentSort
+    const { wishes } = await api(`/api/wishes?sort=${q}&limit=100`)
     wishCache = wishes
     const done = wishes.filter((w) => w.status === 'done')
     const floating = wishes.filter((w) => w.status !== 'done')
     lan.innerHTML = ''
     $('#starband-wrap').style.display = done.length ? '' : 'none'
     buildStarRiver(done)
-    const shown = showDone ? done : floating
+    const shown = showDone ? done : rookie ? floating.filter(isRookieFriendly) : floating
     shown.forEach((w) => lan.appendChild(renderLantern(w)))
-    note.textContent = showDone ? '還沒有成真的願望 —— 快了。' : '池面還很安靜 —— 投下第一個願望吧。'
+    note.textContent = showDone ? '還沒有成真的願望 —— 快了。'
+      : rookie ? '目前沒有規模小中又還沒人做的願望 —— 換個排序看看,或自己投一個。'
+      : '池面還很安靜 —— 投下第一個願望吧。'
     note.style.display = shown.length ? 'none' : 'block'
   } catch (e) {
     $('#starband-wrap').style.display = 'none'
@@ -341,7 +379,8 @@ let freshIds = new Set()   // 本次載入判定「有新進展」的願望 id(�
 function applyFreshBadges() {
   freshIds.forEach((id) => {
     const card = document.getElementById('wish-' + id)
-    if (card && !card.querySelector('.phrase.fresh')) card.prepend(el('span', 'phrase fresh', '有新進展'))
+    const tags = card && card.querySelector('.lantern-tags')
+    if (tags && !tags.querySelector('.phrase.fresh')) tags.prepend(el('span', 'phrase fresh', '有新進展'))
     document.querySelectorAll(`.star[data-wid="${id}"]`).forEach((s) => { s.classList.add('fresh'); s.title = '有新進展' })
   })
 }
@@ -386,13 +425,30 @@ let riverWishes = []
 let riverCleanup = null
 function jitterFor(id, idx) { let h = (id * 31 + idx * 17) % 37; return 10 + h }   // 決定性錯落(不用亂數,重繪不跳)
 
+// 手機:三排漂流的星河會把標題左右切掉(mask 邊緣漸隱 + 單行 ellipsis + 300px 上限),
+// 小螢幕改成垂直清單,只列三則、其餘給「看全部」。
+// ponytail: 只在載入時判斷一次,轉螢幕方向不會重排;切排序或重整就正確,不值得為此加 resize 監聽。
+function buildStarList(wishes) {
+  const band = $('#starband')
+  band.classList.remove('river')
+  band.classList.add('starlist')
+  wishes.slice(0, 3).forEach((w) => band.appendChild(renderStar(w)))
+  if (wishes.length > 3) {
+    const more = el('button', 'star-more', `看全部 ${wishes.length} 個成真的願望`)
+    more.onclick = () => document.querySelector('.sort[data-sort="done"]').click()
+    band.appendChild(more)
+  }
+}
+
 function buildStarRiver(wishes) {
   riverWishes = wishes
   if (riverCleanup) { riverCleanup(); riverCleanup = null }
   const band = $('#starband')
   band.innerHTML = ''
+  band.classList.remove('starlist')
   band.classList.add('river')
   if (!wishes.length) return
+  if (matchMedia('(max-width: 700px)').matches) return buildStarList(wishes)
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
   // 分三排(不足三排就幾排)
   const lanes = [[], [], []]

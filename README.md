@@ -18,12 +18,14 @@
 - **自動媒合「可能有人做過」**:送出願望時,伺服器對站內既有公開願望(含已完成/已有實作者)做純字面相似度比對(CJK 雙字 bigram + 英數詞的 Dice 係數,零 AI API),回應附 `similar[]`,前端順帶提示相似願望與其實作 —— 只推薦、不擋送出。
 - **協力者 GitHub 登入(選配)**:許願者維持零登入的不對稱設計不變 —— 只有協力者需要時才登入,換到的是「投幣一人一票」(去重指紋改用 GitHub 帳號,換裝置換 IP 都只算一票)與「已驗證署名」(交實作/認領的 handle 由伺服器掛上登入帳號,前端顯示已驗證徽章)。OAuth scope 留空(只取用公開帳號名稱與頭像,不要任何 repo 權限);access token 用完即丟不入庫,登入憑證是 HMAC 簽章字串(無 session 表)。Worker 沒設 OAuth secrets 時整條登入路自動關閉,站台其餘功能不受影響。
 - **防濫用**:Cloudflare Turnstile(Invisible)+ 每 IP 限流 + 投票軟去重(登入者改走帳號去重)。不用註冊。
+- **卡片一眼看得懂**:每張願望卡上有一句摘要、還缺幾項規格、已有幾份實作;「適合新手」篩選只留規模小中又還沒人做的願望。
 
 ## 目錄
 
 - `index.html` / `app.js` / `styles.css` — 池面(許願、投幣、共鳴、協作層、雙主題)
 - `board.html` / `board.js` — 工坊(狀態看板)
 - `collab.html` — 協作指南(池規、AI prompt 複製框)
+- `portfolio.html` — 把願望做成作品集(給剛畢業或想轉職的人:怎麼挑題、怎麼交、面試怎麼講)
 - `admin.html` / `admin.js` — 後台(審核/採用/隱藏/刪除/匯出;單筆詳情可展開許願時與女神的對話紀錄)
 - `config.js` — 公開設定(Worker 網址、Turnstile site key)
 - `llms.txt` / `AGENTS.md` / `skills/wish-pool/SKILL.md` / `wish.mjs` — AI agent 入口(規則/導覽/skill/CLI)

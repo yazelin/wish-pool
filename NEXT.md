@@ -1,3 +1,4 @@
 # Next
 
-- [x] credits 功能已 merge(PR #35),worker 還沒部署:cd worker && npm run deploy(權限分類器擋 production deploy,要 yazelin 親自過);部署後主頁 footer 感謝名單自動出現
+- [ ] 8/26 直播後看流量與新願望數,決定「適合新手」的條件要不要放寬(目前規模小中+尚無實作,只篩得到 2 個)
+- [ ] 規格缺口沒人補是目前最大的瓶頸:8 個未成真願望裡 5 個一項都沒補。想個讓補缺口變容易的入口

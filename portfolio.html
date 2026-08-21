@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>把願望做成作品集 · AI 願望池</title>
+  <meta name="description" content="給剛畢業或想轉職的人:從願望池挑一個真實的需求做出來,累積拿得出手的作品集。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="stylesheet" href="styles.css">
+  <script>
+    (function () {
+      var t = 'day'
+      try { t = localStorage.getItem('wishpool_theme') || 'day' } catch (e) {}
+      if (t === 'day') document.documentElement.classList.add('theme-day')
+    })()
+  </script>
+  <style>
+    .guide { max-width: 720px; margin: 0 auto; }
+    .guide section { background: linear-gradient(165deg, var(--surface), var(--surface-2)); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 22px; margin-bottom: 18px; box-shadow: var(--shadow); }
+    .guide h2 { font-family: var(--serif); font-size: 1.2rem; margin: 0 0 12px; color: var(--amber-soft); }
+    .theme-day .guide h2 { color: #177f92; }
+    .guide ol, .guide ul { margin: 0; padding-left: 22px; }
+    .guide li { margin: 7px 0; }
+    .guide code { font-family: ui-monospace, monospace; font-size: .86em; background: var(--bg-2);
+      border: 1px solid var(--border-soft); border-radius: 6px; padding: 1px 7px; }
+    .theme-day .guide code { background: #f2f8f5; }
+    .step { display: flex; gap: 14px; align-items: flex-start; margin: 14px 0; }
+    .step .n { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+      font-weight: 700; font-size: .9rem; color: var(--on-amber);
+      background: linear-gradient(135deg, var(--amber), var(--amber-deep)); }
+    .step .t { flex: 1; }
+    .step .t b { display: block; margin-bottom: 3px; }
+  </style>
+</head>
+<body>
+  <div class="wrap guide">
+    <header class="hero">
+      <span class="kicker">Portfolio</span>
+      <h1>把願望做成作品集</h1>
+      <p>給剛畢業、想轉職、或手上沒有作品的人。<a href="index.html">回到池邊 &rarr;</a></p>
+      <p><button class="sort" id="theme-toggle" aria-label="切換晨光或夜晚">夜晚</button></p>
+    </header>
+
+    <section>
+      <h2>為什麼從這裡挑題目</h2>
+      <p class="muted">自己想的練習題,面試官看得出來是練習題。池子裡的每一個願望背後都有一個真的人,他寫下自己遇到的問題、希望有什麼。你做出來,是有人真的會用。</p>
+      <ul>
+        <li><strong>需求是別人給的</strong>,不是你自己編的 —— 這件事在履歷上差很多。</li>
+        <li><strong>規格看得到</strong>:每個願望都有「還缺幾項規格」,補完就是一份可驗收的需求書。</li>
+        <li><strong>過程留得下紀錄</strong>:認領、進度回報、交出實作,全部公開有時間戳,面試時可以直接翻給對方看。</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>四步</h2>
+      <div class="step"><span class="n">1</span><div class="t">
+        <b>挑一個做得動的</b>
+        <span class="muted">回池邊按<strong>「適合新手」</strong>,那裡只留規模小或中、而且還沒有人交過實作的願望。點開看「還缺幾項規格」,缺得少的比較好動工。</span>
+      </div></div>
+      <div class="step"><span class="n">2</span><div class="t">
+        <b>先查市面上有沒有人做過</b>
+        <span class="muted">查大廠內建功能、同類 app、GitHub 既有 repo。查到的多半只是相近,把「對方做到哪、我要補哪一格」寫進認領那句話,這段落差本身就是你的作品說明。真的撞到一模一樣的,把那個連結交上去指路,一樣算幫上忙。</span>
+      </div></div>
+      <div class="step"><span class="n">3</span><div class="t">
+        <b>補規格缺口,再動手</b>
+        <span class="muted">缺口就是許願者沒講清楚的地方。你可以在願望底下直接問他,也可以自己提個方案請他確認。缺口填平等於規格開好,接下來實作才不會做偏。</span>
+      </div></div>
+      <div class="step"><span class="n">4</span><div class="t">
+        <b>認領、做、交回</b>
+        <span class="muted">動工前先<strong>認領</strong>(願望會自動變成「實現中」,讓別人知道有人在做);做到一半也可以回報進度,半成品的紀錄一樣有價值。做完把 repo 連結交上來,誠實寫這個版本做到哪、沒做到哪。</span>
+      </div></div>
+    </section>
+
+    <section>
+      <h2>交出去的 repo 要有什麼</h2>
+      <ul>
+        <li><strong>真的跑得起來</strong>。README 寫清楚怎麼安裝、怎麼跑,別人照著做要能重現。</li>
+        <li><strong>一張成果截圖</strong>。傳到 repo 的 Settings → Social preview,池子這邊會自動顯示成你的實作預覽。</li>
+        <li><strong>誠實的範圍說明</strong>。哪些做了、哪些沒做、已知的問題是什麼。寫出來比藏起來有說服力。</li>
+        <li><strong>署名</strong>。用 GitHub 登入之後交實作會自動掛上已驗證署名,感謝名單上也會有你。</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>面試時怎麼講這份作品</h2>
+      <p class="muted">照這個順序講,對方會聽到你要的東西:</p>
+      <ol>
+        <li><strong>需求方是誰、他的問題是什麼</strong> —— 證明你做的是真需求,不是練習題。</li>
+        <li><strong>規格怎麼來的</strong> —— 你問了哪些問題、補了哪幾項缺口。這一段展示的是溝通與釐清需求的能力,通常比技術細節更稀缺。</li>
+        <li><strong>驗收標準是什麼、你怎麼驗的</strong> —— 講得出驗收標準,對方就知道你交付過東西。</li>
+        <li><strong>哪裡沒做完、為什麼</strong> —— 講得出取捨,比宣稱全部完美更可信。</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>先說清楚的幾件事</h2>
+      <ul>
+        <li>一個願望可以有<strong>多份實作並列</strong>,不鎖定、可以多人同時做。已經有人在做的願望,你一樣可以做自己的版本。</li>
+        <li>「採用哪一版」現階段由站長決定,這是過渡做法。沒被採用的實作一樣公開列在那個願望底下,一樣是你的作品。</li>
+        <li>這裡不收「幫現有 repo 加功能」,那種請到該 repo 的 GitHub Issues 提。池子收的是<strong>還不存在的作品</strong>。</li>
+        <li>做不完可以停,回報一則進度就好。留著紀錄讓別人接得下去,比默默消失有價值。</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>用 AI 幫你做</h2>
+      <p class="muted">整個流程都設計成 AI agent 也能操作:讀願望、補規格、認領、交實作都有公開 API 與 CLI。你可以把整段流程交給 Claude Code 或 Codex 跑,自己負責挑題目、開規格、驗收 —— 那三件事才是面試官想看的。做法見<a class="repo-link" href="collab.html">協作指南</a>。</p>
+    </section>
+
+    <footer class="site-footer">
+      <p class="muted">by 林亞澤 · <a class="repo-link" href="index.html">許願池</a> · <a class="repo-link" href="collab.html">協作指南</a> · <a class="repo-link" href="board.html">工坊</a></p>
+    </footer>
+  </div>
+
+  <script>
+    (function () {
+      var btn = document.getElementById('theme-toggle')
+      var sync = function () {
+        var day = document.documentElement.classList.contains('theme-day')
+        btn.textContent = day ? '夜晚' : '晨光'
+      }
+      btn.onclick = function () {
+        document.documentElement.classList.toggle('theme-day')
+        try { localStorage.setItem('wishpool_theme',
+          document.documentElement.classList.contains('theme-day') ? 'day' : 'night') } catch (e) {}
+        sync()
+      }
+      sync()
+    })()
+  </script>
+</body>
+</html>

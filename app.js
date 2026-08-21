@@ -990,9 +990,22 @@ async function downloadSpec(w) {
 }
 
 /* ============ 排序 + deep-link ============ */
-document.querySelectorAll('.sort[data-sort]').forEach((b) => b.onclick = () => {
+// 換排序之後,結果整片可能在摺線以下 —— 手機上 hero 加星帶就吃掉一整屏,
+// 按下去畫面完全沒動,看起來像壞掉。清單露不到 140px 就把排序列捲到頂端,
+// 這樣使用者同時看得到「哪一顆亮了」與換出來的結果。
+function revealList() {
+  const list = $('#lanterns')
+  if (!list) return
+  if (innerHeight - list.getBoundingClientRect().top < 140) {
+    document.querySelector('.bar').scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+}
+
+document.querySelectorAll('.sort[data-sort]').forEach((b) => b.onclick = async () => {
   document.querySelectorAll('.sort[data-sort]').forEach((x) => { x.classList.remove('active'); x.setAttribute('aria-pressed', 'false') })
-  b.classList.add('active'); b.setAttribute('aria-pressed', 'true'); currentSort = b.dataset.sort; loadPond()
+  b.classList.add('active'); b.setAttribute('aria-pressed', 'true'); currentSort = b.dataset.sort
+  await loadPond()
+  revealList()
 })
 document.querySelectorAll('.sort[data-sort]').forEach((b) => b.setAttribute('aria-pressed', b.classList.contains('active') ? 'true' : 'false'))
 
